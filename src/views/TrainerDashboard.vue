@@ -3,7 +3,7 @@ import { ref, onMounted, h, computed } from 'vue'
 import DashboardLayout from '../layouts/DashboardLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import { supabase } from '../supabase'
-import { useMessage, NTag, NButton, NSpace, NPopconfirm, NIcon } from 'naive-ui'
+import { useMessage, NTag, NButton, NSpace, NPopconfirm, NIcon, type DataTableColumns } from 'naive-ui'
 import { Add as AddIcon, ArrowBack as BackIcon, Pencil as EditIcon, Trash as DeleteIcon } from '@vicons/ionicons5'
 import { useRouter } from 'vue-router'
 
@@ -39,7 +39,7 @@ const entryForm = ref({
   comments: ''
 })
 
-const columns = [
+const columns: DataTableColumns<any> = [
   { 
     title: 'Тип проекта', 
     key: 'project_types.name',

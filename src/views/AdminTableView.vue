@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import DashboardLayout from '../layouts/DashboardLayout.vue'
 import { supabase } from '../supabase'
-import { useMessage } from 'naive-ui'
+import { useMessage, type DataTableColumns } from 'naive-ui'
 import { PeopleOutline as PeopleIcon, FolderOpenOutline as ProjectIcon, CheckmarkCircleOutline as CheckIcon } from '@vicons/ionicons5'
 
 import { useRouter } from 'vue-router'
@@ -32,8 +32,8 @@ const trainersList = ref<any[]>([])
 const rolesList = ref<any[]>([])
 const projectsData = ref<any[]>([])
 
-const tableColumns = computed(() => {
-  const cols: any[] = [
+const tableColumns = computed((): DataTableColumns<any> => {
+  const cols: DataTableColumns<any> = [
     { 
       title: 'ФИО Тренера', 
       key: 'full_name', 

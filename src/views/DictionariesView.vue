@@ -2,7 +2,7 @@
 import { ref, onMounted, h } from 'vue'
 import DashboardLayout from '../layouts/DashboardLayout.vue'
 import { supabase } from '../supabase'
-import { useMessage, NButton, NSpace, NPopconfirm } from 'naive-ui'
+import { useMessage, NButton, NSpace, NPopconfirm, type DataTableColumns } from 'naive-ui'
 import { Pencil as EditIcon, Trash as DeleteIcon, Add as AddIcon } from '@vicons/ionicons5'
 
 const message = useMessage()
@@ -24,7 +24,7 @@ const dictConfigs: Record<string, any> = {
     title: 'Тренеры',
     table: 'trainers',
     labelField: 'full_name',
-    columns: (handleEdit: any, handleDelete: any) => [
+    columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
       { title: 'ID', key: 'id', width: 80 },
       { title: 'ФИО', key: 'full_name', sorter: 'default' },
       {
@@ -49,7 +49,7 @@ const dictConfigs: Record<string, any> = {
     title: 'Роли',
     table: 'roles',
     labelField: 'name',
-    columns: (handleEdit: any, handleDelete: any) => [
+    columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
       { title: 'ID', key: 'id', width: 80 },
       { title: 'Название', key: 'name', sorter: 'default' },
       {
@@ -74,7 +74,7 @@ const dictConfigs: Record<string, any> = {
     title: 'Типы проектов',
     table: 'project_types',
     labelField: 'name',
-    columns: (handleEdit: any, handleDelete: any) => [
+    columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
       { title: 'ID', key: 'id', width: 80 },
       { title: 'Тип', key: 'name', sorter: 'default' },
       {
@@ -99,7 +99,7 @@ const dictConfigs: Record<string, any> = {
     title: 'Проекты',
     table: 'project_names',
     labelField: 'name',
-    columns: (handleEdit: any, handleDelete: any) => [
+    columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
       { title: 'ID', key: 'id', width: 80 },
       { title: 'Проект', key: 'name', sorter: 'default' },
       {
