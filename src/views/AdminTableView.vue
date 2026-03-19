@@ -39,7 +39,7 @@ const tableColumns = computed((): DataTableColumns<any> => {
       key: 'full_name', 
       fixed: 'left', 
       width: 200,
-      sorter: 'default',
+      sorter: true,
       resizable: true
     }
   ]

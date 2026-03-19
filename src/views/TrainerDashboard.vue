@@ -56,7 +56,7 @@ const columns: DataTableColumns<any> = [
     sorter: (row1: any, row2: any) => (row1.project_names?.name || '').localeCompare(row2.project_names?.name || ''),
     resizable: true
   },
-  { title: 'Подпроект', key: 'project_sub', width: 200, sorter: 'default', resizable: true },
+  { title: 'Подпроект', key: 'project_sub', width: 200, sorter: true, resizable: true },
   { 
     title: 'Роль', 
     key: 'roles.name',
@@ -65,7 +65,7 @@ const columns: DataTableColumns<any> = [
     sorter: (row1: any, row2: any) => (row1.roles?.name || '').localeCompare(row2.roles?.name || ''),
     resizable: true
   },
-  { title: 'Описание задачи', key: 'task_desc', width: 300, ellipsis: { tooltip: true }, sorter: 'default', resizable: true },
+  { title: 'Описание задачи', key: 'task_desc', width: 300, ellipsis: { tooltip: true }, sorter: true, resizable: true },
   {
     title: 'Действия',
     key: 'actions',

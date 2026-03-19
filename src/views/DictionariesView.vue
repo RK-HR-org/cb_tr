@@ -26,7 +26,7 @@ const dictConfigs: Record<string, any> = {
     labelField: 'full_name',
     columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
       { title: 'ID', key: 'id', width: 80 },
-      { title: 'ФИО', key: 'full_name', sorter: 'default' },
+      { title: 'ФИО', key: 'full_name', sorter: true },
       {
         title: 'Действия',
         key: 'actions',
@@ -51,7 +51,7 @@ const dictConfigs: Record<string, any> = {
     labelField: 'name',
     columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
       { title: 'ID', key: 'id', width: 80 },
-      { title: 'Название', key: 'name', sorter: 'default' },
+      { title: 'Название', key: 'name', sorter: true },
       {
         title: 'Действия',
         key: 'actions',
@@ -76,7 +76,7 @@ const dictConfigs: Record<string, any> = {
     labelField: 'name',
     columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
       { title: 'ID', key: 'id', width: 80 },
-      { title: 'Тип', key: 'name', sorter: 'default' },
+      { title: 'Тип', key: 'name', sorter: true },
       {
         title: 'Действия',
         key: 'actions',
@@ -101,7 +101,7 @@ const dictConfigs: Record<string, any> = {
     labelField: 'name',
     columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
       { title: 'ID', key: 'id', width: 80 },
-      { title: 'Проект', key: 'name', sorter: 'default' },
+      { title: 'Проект', key: 'name', sorter: true },
       {
         title: 'Действия',
         key: 'actions',
