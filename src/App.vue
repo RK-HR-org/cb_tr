@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { NConfigProvider, NMessageProvider, NDialogProvider, NNotificationProvider, darkTheme } from 'naive-ui'
-import { ref } from 'vue'
+import { NConfigProvider, NMessageProvider, NDialogProvider, NNotificationProvider, darkTheme, useOsTheme } from 'naive-ui'
+import { computed } from 'vue'
 
-const isDark = ref(false)
+const osTheme = useOsTheme()
+const isDark = computed(() => osTheme.value === 'dark')
 
 // Optional: Naive UI primary color overriding could go here
 const themeOverrides = {
