@@ -6,13 +6,13 @@ export const useAuthStore = defineStore('auth', () => {
   const profile = ref<any>(null)
   
   async function login(token: string) {
-    if (token.toLowerCase() === 'admin') {
+    if (token === 'adminpass') {
       profile.value = {
         id: 'admin_id',
         role: 'admin',
         full_name: 'Главный Администратор'
       }
-      localStorage.setItem('auth_token', 'admin')
+      localStorage.setItem('auth_token', 'adminpass')
       return { success: true }
     }
 
