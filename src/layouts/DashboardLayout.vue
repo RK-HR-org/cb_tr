@@ -3,9 +3,19 @@ import { h, computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { LogOutOutline as LogoutIcon, BarChartOutline as StatsIcon, BookOutline as BookIcon, GridOutline as GridIcon } from '@vicons/ionicons5'
+import { useThemeStore } from '../stores/theme'
+import { 
+  LogOutOutline as LogoutIcon, 
+  BarChartOutline as StatsIcon, 
+  BookOutline as BookIcon, 
+  GridOutline as GridIcon,
+  SunnyOutline as SunIcon,
+  MoonOutline as MoonIcon,
+  SettingsOutline as AutoIcon
+} from '@vicons/ionicons5'
 
 const authStore = useAuthStore()
+const themeStore = useThemeStore()
 const router = useRouter()
 
 const isAdmin = computed(() => authStore.profile?.role === 'admin')
@@ -74,6 +84,19 @@ async function handleLogout() {
         </div>
         
         <div class="flex items-center gap-4">
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button quaternary circle @click="themeStore.toggleTheme">
+                <template #icon>
+                  <n-icon v-if="themeStore.theme === 'light'"><SunIcon /></n-icon>
+                  <n-icon v-else-if="themeStore.theme === 'dark'"><MoonIcon /></n-icon>
+                  <n-icon v-else><AutoIcon /></n-icon>
+                </template>
+              </n-button>
+            </template>
+            {{ themeStore.theme === 'light' ? 'Светлая тема' : themeStore.theme === 'dark' ? 'Темная тема' : 'Системная тема' }}
+          </n-tooltip>
+
           <div class="flex flex-col items-end mr-2">
             <span class="text-sm font-medium">{{ authStore.profile?.full_name || 'Пользователь' }}</span>
             <span class="text-xs text-gray-500 uppercase">{{ authStore.profile?.role === 'admin' ? 'Администратор' : 'Тренер' }}</span>

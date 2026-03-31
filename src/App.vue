@@ -1,11 +1,30 @@
 <script setup lang="ts">
-import { NConfigProvider, NMessageProvider, NDialogProvider, NNotificationProvider, darkTheme, useOsTheme } from 'naive-ui'
-import { computed } from 'vue'
+import { 
+  NConfigProvider, 
+  NMessageProvider, 
+  NDialogProvider, 
+  NNotificationProvider, 
+  darkTheme, 
+  useOsTheme, 
+  ruRU, 
+  dateRuRU 
+} from 'naive-ui'
+import { computed, onMounted } from 'vue'
+import { useThemeStore } from './stores/theme'
 
+const themeStore = useThemeStore()
 const osTheme = useOsTheme()
-const isDark = computed(() => osTheme.value === 'dark')
 
-// Optional: Naive UI primary color overriding could go here
+// Determine if Naive UI should be dark
+const isDark = computed(() => {
+  if (themeStore.theme === 'auto') return osTheme.value === 'dark'
+  return themeStore.theme === 'dark'
+})
+
+onMounted(() => {
+  themeStore.applyTheme()
+})
+
 const themeOverrides = {
   common: {
     primaryColor: '#3b82f6',
@@ -16,7 +35,12 @@ const themeOverrides = {
 </script>
 
 <template>
-  <n-config-provider :theme="isDark ? darkTheme : null" :theme-overrides="themeOverrides">
+  <n-config-provider 
+    :theme="isDark ? darkTheme : null" 
+    :theme-overrides="themeOverrides"
+    :locale="ruRU"
+    :date-locale="dateRuRU"
+  >
     <n-message-provider>
       <n-dialog-provider>
         <n-notification-provider>
