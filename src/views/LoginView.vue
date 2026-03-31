@@ -67,8 +67,7 @@ async function handleLogin() {
       </n-form>
       
       <div class="mt-4 text-center text-sm text-gray-500">
-        <p>Для входа используйте свой числовой номер тренера (ID).</p>
-        <p>Администратор: <code>admin</code></p>
+        <p>Для входа используйте свой числовой номер тренера (ID).11</p>
       </div>
     </div>
   </div>
