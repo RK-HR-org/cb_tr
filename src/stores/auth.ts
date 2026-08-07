@@ -1,9 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { supabase } from '../supabase'
+import { getTrainer } from '../entities/trainer'
+import type { AppProfile } from '../shared/types'
 
 export const useAuthStore = defineStore('auth', () => {
-  const profile = ref<any>(null)
+  const profile = ref<AppProfile | null>(null)
+  const initialized = ref(false)
+  let initializationPromise: Promise<void> | null = null
   
   async function login(token: string) {
     if (token === 'adminpass') {
@@ -24,11 +27,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     // Try finding a trainer by ID
     try {
-      const { data, error: _error } = await supabase
-        .from('trainers')
-        .select('*')
-        .eq('id', trainerId)
-        .single()
+      const data = await getTrainer(trainerId)
         
       if (data) {
         profile.value = {
@@ -40,16 +39,26 @@ export const useAuthStore = defineStore('auth', () => {
         return { success: true }
       }
       return { success: false, message: 'Тренер с таким ID не найден' }
-    } catch (e: any) {
+    } catch {
       return { success: false, message: 'Неверный формат ID или ошибка сети' }
     }
   }
 
   async function initializeAuth() {
-    const token = localStorage.getItem('auth_token')
-    if (token) {
-      await login(token)
-    }
+    if (initialized.value) return
+    if (initializationPromise) return initializationPromise
+
+    initializationPromise = (async () => {
+      const token = localStorage.getItem('auth_token')
+      if (token) {
+        const result = await login(token)
+        if (!result.success) localStorage.removeItem('auth_token')
+      }
+      initialized.value = true
+    })()
+
+    await initializationPromise
+    initializationPromise = null
   }
 
   function signOut() {
@@ -57,5 +66,5 @@ export const useAuthStore = defineStore('auth', () => {
     profile.value = null
   }
 
-  return { profile, login, initializeAuth, signOut }
+  return { profile, initialized, login, initializeAuth, signOut }
 })

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import DashboardLayout from '../layouts/DashboardLayout.vue'
-import { supabase } from '../supabase'
+import { DashboardLayout } from '../widgets/dashboard-layout'
 import { useMessage, type DataTableColumns } from 'naive-ui'
 import { PeopleOutline as PeopleIcon, FolderOpenOutline as ProjectIcon, CheckmarkCircleOutline as CheckIcon } from '@vicons/ionicons5'
 
 import { useRouter } from 'vue-router'
+import { getTrainerRoleMatrixData } from '../entities/analytics'
 
 const message = useMessage()
 const router = useRouter()
@@ -104,20 +104,11 @@ async function loadAdminData() {
   tableLoading.value = true
   
   try {
-    // 1. Fetch lookup and counters
-    const [trainersRes, projectsCountRes, typesRes, rolesRes, allProjectsRes] = await Promise.all([
-      supabase.from('trainers').select('id, full_name').order('full_name'),
-      supabase.from('trainer_projects').select('*', { count: 'exact', head: true }),
-      supabase.from('project_types').select('*', { count: 'exact', head: true }),
-      supabase.from('roles').select('id, name').order('id'),
-      supabase.from('trainer_projects').select('trainer_id, role_id')
-    ])
-
-    stats.value.totalTrainers = trainersRes.data?.length || 0
-    stats.value.totalProjects = projectsCountRes.count || 0
-    stats.value.totalProjectTypes = typesRes.count || 0
-    
-    trainersList.value = (trainersRes.data || []).sort((a, b) => a.full_name.localeCompare(b.full_name))
+    const data = await getTrainerRoleMatrixData()
+    stats.value.totalTrainers = data.trainers.length
+    stats.value.totalProjects = data.activityCount
+    stats.value.totalProjectTypes = data.projectTypeCount
+    trainersList.value = data.trainers
 
     
     // Custom sort order for roles as requested by user
@@ -129,14 +120,14 @@ async function loadAdminData() {
       'тренер/ведущий': 5
     }
 
-    const rawRoles = rolesRes.data || []
+    const rawRoles = data.roles
     rolesList.value = [...rawRoles].sort((a, b) => {
       const orderA = orderMap[a.name.toLowerCase()] || 99
       const orderB = orderMap[b.name.toLowerCase()] || 99
       return orderA - orderB
     })
 
-    projectsData.value = allProjectsRes.data || []
+    projectsData.value = data.assignments
     
   } catch (error: any) {
     message.error('Ошибка загрузки данных для статистики')

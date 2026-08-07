@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, provide } from 'vue'
-import DashboardLayout from '../layouts/DashboardLayout.vue'
-import { supabase } from '../supabase'
+import { DashboardLayout } from '../widgets/dashboard-layout'
 import { useMessage } from 'naive-ui'
 import { PeopleOutline as PeopleIcon, FolderOpenOutline as ProjectIcon, PieChartOutline as ChartIcon } from '@vicons/ionicons5'
 
@@ -11,6 +10,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { BarChart, PieChart, HeatmapChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent, TitleComponent, VisualMapComponent } from 'echarts/components'
 import VChart, { THEME_KEY } from 'vue-echarts'
+import { getDashboardAnalyticsData } from '../entities/analytics'
 
 use([
   CanvasRenderer,
@@ -363,19 +363,12 @@ const trainerProjectHeatmapOption = computed(() => {
 async function loadData() {
   loading.value = true
   try {
-    const [rolesRes, trainersRes, entriesRes, typesRes, namesRes] = await Promise.all([
-      supabase.from('roles').select('id, name'),
-      supabase.from('trainers').select('id, full_name'),
-      supabase.from('trainer_projects').select('trainer_id, role_id, project_type_id, project_main_id'),
-      supabase.from('project_types').select('id, name'),
-      supabase.from('project_names').select('id, name')
-    ])
-
-    roles.value = rolesRes.data || []
-    trainers.value = trainersRes.data || []
-    entries.value = entriesRes.data || []
-    projectTypes.value = typesRes.data || []
-    projectNames.value = namesRes.data || []
+    const data = await getDashboardAnalyticsData()
+    roles.value = data.roles
+    trainers.value = data.trainers
+    entries.value = data.entries
+    projectTypes.value = data.projectTypes
+    projectNames.value = data.projects
 
     stats.value.totalTrainers = trainers.value.length
     stats.value.totalTasks = entries.value.length

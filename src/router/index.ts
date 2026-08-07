@@ -1,65 +1,89 @@
-import { createRouter, createWebHistory } from 'vue-router'
-
+import { createRouter, createWebHistory } from "vue-router";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
-      path: '/login',
-      name: 'login',
-      component: () => import('../views/LoginView.vue')
+      path: "/login",
+      name: "login",
+      component: () => import("../pages/login"),
     },
     {
-      path: '/',
-      name: 'home',
-      component: () => import('../views/HomeView.vue'),
-      meta: { requiresAuth: true }
+      path: "/",
+      name: "home",
+      component: () => import("../pages/home"),
+      meta: { requiresAuth: true },
     },
     {
-      path: '/trainer/dashboard',
-      name: 'trainer-dashboard',
-      component: () => import('../views/TrainerDashboard.vue'),
-      meta: { requiresAuth: true, role: 'trainer' }
+      path: "/trainer/dashboard",
+      name: "trainer-dashboard",
+      component: () => import("../pages/trainer-dashboard"),
+      meta: { requiresAuth: true, role: "trainer" },
     },
     {
-      path: '/admin/dashboard',
-      name: 'admin-dashboard',
-      component: () => import('../views/AdminDashboard.vue'),
-      meta: { requiresAuth: true, role: 'admin' }
+      path: "/calendar",
+      name: "calendar",
+      component: () => import("../pages/calendar"),
+      meta: { requiresAuth: true },
     },
     {
-      path: '/admin/table',
-      name: 'admin-table',
-      component: () => import('../views/AdminTableView.vue'),
-      meta: { requiresAuth: true, role: 'admin' }
+      path: "/admin/dashboard",
+      name: "admin-dashboard",
+      component: () => import("../pages/admin-dashboard"),
+      meta: { requiresAuth: true, role: "admin" },
     },
     {
-      path: '/admin/trainers/:id',
-      name: 'admin-trainer-view',
-      component: () => import('../views/TrainerDashboard.vue'),
+      path: "/admin/table",
+      name: "admin-table",
+      component: () => import("../pages/admin-table"),
+      meta: { requiresAuth: true, role: "admin" },
+    },
+    {
+      path: "/admin/trainers/:id",
+      name: "admin-trainer-view",
+      component: () => import("../pages/trainer-dashboard"),
       props: true,
-      meta: { requiresAuth: true, role: 'admin' }
+      meta: { requiresAuth: true, role: "admin" },
     },
     {
-      path: '/admin/dictionaries',
-      name: 'admin-dictionaries',
-      component: () => import('../views/DictionariesView.vue'),
-      meta: { requiresAuth: true, role: 'admin' }
-    }
-  ]
-})
+      path: "/admin/dictionaries",
+      name: "admin-dictionaries",
+      component: () => import("../pages/dictionaries"),
+      meta: { requiresAuth: true, role: "admin" },
+    },
+    {
+      path: "/admin/gantt",
+      name: "admin-gantt",
+      component: () => import("../pages/admin-gantt"),
+      meta: { requiresAuth: true, role: "admin" },
+    },
+  ],
+});
 
-import { useAuthStore } from '../stores/auth'
+import { useAuthStore } from "../stores/auth";
 
 // Navigation guard
 router.beforeEach(async (to, _from) => {
-  const authStore = useAuthStore()
-  
-  if (to.meta.requiresAuth && !authStore.profile) {
-    return { name: 'login' }
-  } else if (to.name === 'login' && authStore.profile) {
-    return { name: 'home' }
-  }
-})
+  const authStore = useAuthStore();
+  await authStore.initializeAuth();
 
-export default router
+  if (to.meta.requiresAuth && !authStore.profile) {
+    return { name: "login" };
+  }
+
+  if (
+    authStore.profile
+    && typeof to.meta.role === "string"
+    && to.meta.role !== authStore.profile.role
+  ) {
+    return authStore.profile.role === "admin"
+      ? { name: "admin-dashboard" }
+      : { name: "trainer-dashboard" };
+  }
+
+  if (to.name === "login" && authStore.profile) {
+    return { name: "home" };
+  }
+});
+
+export default router;

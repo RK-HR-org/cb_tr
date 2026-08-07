@@ -1,17 +1,24 @@
 <script setup lang="ts">
 import { ref, onMounted, h, computed } from 'vue'
-import DashboardLayout from '../layouts/DashboardLayout.vue'
-import { supabase } from '../supabase'
+import { DashboardLayout } from '../widgets/dashboard-layout'
 import { useMessage, NButton, NSpace, NPopconfirm, NTag, type DataTableColumns } from 'naive-ui'
 import { Pencil as EditIcon, Trash as DeleteIcon, Add as AddIcon } from '@vicons/ionicons5'
+import {
+  deleteDictionaryRecord,
+  listDictionary,
+  saveDictionaryRecord,
+  type DictionaryPayload,
+  type DictionaryRecord,
+  type DictionaryTable,
+} from '../entities/dictionary'
 
 const message = useMessage()
-const loading = ref(false)
 const showModal = ref(false)
 const activeTab = ref('trainers')
+const items = ref<DictionaryRecord[]>([])
+const loading = ref(false)
 
 // Data states
-const items = ref<any[]>([])
 const editingId = ref<number | null>(null)
 const formData = ref({
   name: '',
@@ -175,15 +182,13 @@ const currentConfig = computed(() => dictConfigs[activeTab.value])
 
 async function loadData() {
   loading.value = true
-  const config = dictConfigs[activeTab.value]
-  const { data, error } = await supabase
-    .from(config.table)
-    .select('*')
-    .order('id', { ascending: true })
-  
-  if (error) message.error('Ошибка загрузки: ' + error.message)
-  else items.value = data || []
-  loading.value = false
+  try {
+    items.value = await listDictionary(currentConfig.value.table as DictionaryTable)
+  } catch (error: unknown) {
+    message.error('Ошибка загрузки: ' + (error instanceof Error ? error.message : 'неизвестная ошибка'))
+  } finally {
+    loading.value = false
+  }
 }
 
 function handleEdit(row: any) {
@@ -198,12 +203,12 @@ function handleEdit(row: any) {
 }
 
 async function handleDelete(id: number) {
-  const config = dictConfigs[activeTab.value]
-  const { error } = await supabase.from(config.table).delete().eq('id', id)
-  if (error) message.error('Нельзя удалить: запись, возможно, используется в задачах')
-  else {
-    message.success('Удалено')
+  try {
+    await deleteDictionaryRecord(currentConfig.value.table as DictionaryTable, id)
+    message.success('Запись удалена')
     await loadData()
+  } catch {
+    message.error('Нельзя удалить: запись, возможно, используется в задачах')
   }
 }
 
@@ -215,30 +220,28 @@ async function handleSave() {
     return
   }
 
-  loading.value = true
-  const payload: any = {}
+  const payload: DictionaryPayload = {}
   payload[config.labelField] = nameValue
 
   if (config.hasDescription) payload.description = formData.value.description
   if (config.hasWeight) payload.weight = formData.value.weight
   if (config.hasActive) payload.is_active = formData.value.is_active
 
-  let error
-  if (editingId.value) {
-    const res = await supabase.from(config.table).update(payload).eq('id', editingId.value)
-    error = res.error
-  } else {
-    const res = await supabase.from(config.table).insert(payload)
-    error = res.error
-  }
-
-  if (error) message.error('Ошибка сохранения: ' + error.message)
-  else {
+  loading.value = true
+  try {
+    await saveDictionaryRecord(
+      currentConfig.value.table as DictionaryTable,
+      payload,
+      editingId.value,
+    )
     message.success('Успешно сохранено')
     showModal.value = false
     await loadData()
+  } catch (error: unknown) {
+    message.error('Ошибка сохранения: ' + (error instanceof Error ? error.message : 'неизвестная ошибка'))
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 function openAddModal() {
