@@ -168,7 +168,7 @@ onMounted(() => {
       </n-card>
 
       <n-card :loading="loading">
-        <n-statistic label="Типов программ" :value="stats.totalProjectTypes">
+        <n-statistic label="Типов проектов" :value="stats.totalProjectTypes">
           <template #prefix>
             <n-icon><CheckIcon /></n-icon>
           </template>

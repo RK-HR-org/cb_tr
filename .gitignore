@@ -26,6 +26,7 @@ dist-ssr
 # AI Agents and temporary files
 .agents/
 .gemini/
+tmp_*.txt
 
 # Environment variables
 .env

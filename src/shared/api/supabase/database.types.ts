@@ -35,6 +35,138 @@ type ClassifiedInsert = NamedWeightedInsert & {
   is_active?: boolean
 }
 
+type ActiveNamedRow = {
+  id: number
+  name: string
+  is_active: boolean
+}
+
+type ActiveNamedInsert = {
+  id?: number
+  name: string
+  is_active?: boolean
+}
+
+type CodeDictionaryRow = {
+  code: string
+  name: string
+  sort_order: number
+  is_active: boolean
+}
+
+type CodeDictionaryInsert = {
+  code: string
+  name: string
+  sort_order?: number
+  is_active?: boolean
+}
+
+export type TrainerRow = {
+  id: number
+  full_name: string
+  city_id: number | null
+  division_id: number | null
+}
+
+export type TrainerInsert = {
+  id?: number
+  full_name: string
+  city_id?: number | null
+  division_id?: number | null
+}
+
+export type ProjectRow = {
+  id: number
+  name: string
+  audit_index: string | null
+  weight: number | null
+  status_code: string
+  project_type_id: number | null
+  parent_project_id: number | null
+  module_position: number | null
+  customer: string | null
+  lead_methodologist_id: number | null
+  target_audience: string | null
+  goals: string | null
+  short_description: string | null
+  duration_days: number | null
+  duration_hours: number | null
+  participant_count: number | null
+  central_office_format_code: string | null
+  main_department_format_code: string | null
+  annual_budget_item_id: number | null
+}
+
+export type ProjectInsert = {
+  id?: number
+  name: string
+  audit_index?: string | null
+  weight?: number | null
+  status_code?: string
+  project_type_id?: number | null
+  parent_project_id?: number | null
+  module_position?: number | null
+  customer?: string | null
+  lead_methodologist_id?: number | null
+  target_audience?: string | null
+  goals?: string | null
+  short_description?: string | null
+  duration_days?: number | null
+  duration_hours?: number | null
+  participant_count?: number | null
+  central_office_format_code?: string | null
+  main_department_format_code?: string | null
+  annual_budget_item_id?: number | null
+}
+
+export type TrainerCertificationRow = {
+  id: number
+  trainer_id: number
+  project_id: number
+  status_code: string
+  valid_from: string | null
+  valid_until: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type TrainerCertificationInsert = {
+  id?: number
+  trainer_id: number
+  project_id: number
+  status_code?: string
+  valid_from?: string | null
+  valid_until?: string | null
+  notes?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export type ProjectMaterialRow = {
+  id: number
+  project_id: number
+  type_code: string
+  status_code: string
+  title: string | null
+  location: string | null
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type ProjectMaterialInsert = {
+  id?: number
+  project_id: number
+  type_code: string
+  status_code?: string
+  title?: string | null
+  location?: string | null
+  description?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
 export type TrainerProjectRow = {
   id: number
   trainer_id: number
@@ -91,19 +223,67 @@ export type Database = {
   public: {
     Tables: {
       trainers: TableDefinition<
-        { id: number; full_name: string },
-        { id?: number; full_name: string }
+        TrainerRow,
+        TrainerInsert
       >
       roles: TableDefinition<NamedWeightedRow, NamedWeightedInsert>
       project_types: TableDefinition<NamedWeightedRow, NamedWeightedInsert>
-      project_names: TableDefinition<NamedWeightedRow, NamedWeightedInsert>
+      project_names: TableDefinition<ProjectRow, ProjectInsert>
       activity_types: TableDefinition<ClassifiedRow, ClassifiedInsert>
       delivery_formats: TableDefinition<ClassifiedRow, ClassifiedInsert>
       recurrence_types: TableDefinition<ClassifiedRow, ClassifiedInsert>
       trainer_projects: TableDefinition<TrainerProjectRow, TrainerProjectInsert>
+      cities: TableDefinition<ActiveNamedRow, ActiveNamedInsert>
+      divisions: TableDefinition<ActiveNamedRow, ActiveNamedInsert>
+      directions: TableDefinition<
+        ActiveNamedRow & { description: string | null },
+        ActiveNamedInsert & { description?: string | null }
+      >
+      project_statuses: TableDefinition<
+        CodeDictionaryRow & { is_terminal: boolean },
+        CodeDictionaryInsert & { is_terminal?: boolean }
+      >
+      project_delivery_formats: TableDefinition<CodeDictionaryRow, CodeDictionaryInsert>
+      annual_budget_items: TableDefinition<ActiveNamedRow, ActiveNamedInsert>
+      certification_statuses: TableDefinition<
+        CodeDictionaryRow & { grants_access: boolean },
+        CodeDictionaryInsert & { grants_access?: boolean }
+      >
+      material_types: TableDefinition<CodeDictionaryRow, CodeDictionaryInsert>
+      material_statuses: TableDefinition<
+        CodeDictionaryRow & { is_complete: boolean },
+        CodeDictionaryInsert & { is_complete?: boolean }
+      >
+      project_direction_links: TableDefinition<
+        { project_id: number; direction_id: number },
+        { project_id: number; direction_id: number }
+      >
+      trainer_certifications: TableDefinition<
+        TrainerCertificationRow,
+        TrainerCertificationInsert
+      >
+      project_materials: TableDefinition<ProjectMaterialRow, ProjectMaterialInsert>
     }
-    Views: Record<string, never>
+    Views: {
+      trainer_effective_project_access: {
+        Row: {
+          trainer_id: number | null
+          project_id: number | null
+          granted_by_project_id: number | null
+          certification_id: number | null
+        }
+        Relationships: []
+      }
+    }
     Functions: {
+      save_project_card: {
+        Args: {
+          p_project_id: number | null
+          p_payload: Json
+          p_direction_ids?: number[]
+        }
+        Returns: number
+      }
       save_trainer_activity: {
         Args: {
           p_record_id: number | null

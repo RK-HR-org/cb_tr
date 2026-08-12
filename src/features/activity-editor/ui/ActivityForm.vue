@@ -57,14 +57,17 @@ const model = defineModel<ActivityFormValues>({ required: true })
         </NFormItem>
       </NGridItem>
       <NGridItem>
-        <NFormItem label="Основной проект" required>
-          <NSelect v-model:value="model.project_main_id" :options="references.projects" placeholder="Выберите проект" filterable />
+        <NFormItem label="Проект / программа / модуль" required>
+          <NSelect v-model:value="model.project_main_id" :options="references.projects" placeholder="Выберите элемент" filterable />
         </NFormItem>
       </NGridItem>
     </NGrid>
 
-    <NFormItem label="Подпроект / Тема">
-      <NInput v-model:value="model.project_sub" placeholder="Напр: Статистика УБР" />
+    <NFormItem label="Legacy-подпроект / тема">
+      <NInput
+        v-model:value="model.project_sub"
+        placeholder="Используйте только для старых данных без карточки модуля"
+      />
     </NFormItem>
     <NFormItem label="Роль в проекте" required>
       <NSelect v-model:value="model.role_id" :options="references.roles" placeholder="Выберите роль" />

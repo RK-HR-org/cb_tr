@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, h, computed } from 'vue'
+import { ref, onMounted, h, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { DashboardLayout } from '../widgets/dashboard-layout'
 import { useMessage, NButton, NSpace, NPopconfirm, NTag, type DataTableColumns } from 'naive-ui'
 import { Pencil as EditIcon, Trash as DeleteIcon, Add as AddIcon } from '@vicons/ionicons5'
@@ -12,11 +13,44 @@ import {
   type DictionaryTable,
 } from '../entities/dictionary'
 
+const props = withDefaults(defineProps<{
+  projectsOnly?: boolean
+  trainersOnly?: boolean
+}>(), {
+  projectsOnly: false,
+  trainersOnly: false,
+})
+
 const message = useMessage()
+const router = useRouter()
 const showModal = ref(false)
-const activeTab = ref('trainers')
+const routeTab = () => (
+  props.projectsOnly
+    ? 'project_names'
+    : props.trainersOnly
+      ? 'trainers'
+      : 'roles'
+)
+const activeTab = ref(routeTab())
 const items = ref<DictionaryRecord[]>([])
+const projectTypeNames = ref<Record<number, string>>({})
+const projectSearch = ref('')
+const visibleProjectStatuses = ref<string[]>([])
 const loading = ref(false)
+let loadRequestId = 0
+
+const projectStatusLabels: Record<string, string> = {
+  under_review: 'На рассмотрении',
+  in_development: 'В разработке',
+  needs_update: 'Требует актуализации',
+  current: 'Актуален',
+  archived: 'Архив',
+}
+const projectStatusOptions = Object.entries(projectStatusLabels).map(([value, label]) => ({
+  value,
+  label,
+}))
+visibleProjectStatuses.value = projectStatusOptions.map(option => option.value)
 
 // Data states
 const editingId = ref<number | null>(null)
@@ -29,6 +63,36 @@ const formData = ref({
 })
 
 // Helpers
+const textCollator = new Intl.Collator('ru-RU', {
+  numeric: true,
+  sensitivity: 'base',
+})
+
+function compareText(left: unknown, right: unknown) {
+  const leftText = String(left ?? '').trim()
+  const rightText = String(right ?? '').trim()
+  if (!leftText && rightText) return 1
+  if (leftText && !rightText) return -1
+  return textCollator.compare(leftText, rightText)
+}
+
+function idCol() {
+  return {
+    title: 'ID',
+    key: 'id',
+    width: 60,
+    sorter: (a: any, b: any) => Number(a.id) - Number(b.id),
+  }
+}
+
+function textCol(title: string, key: string) {
+  return {
+    title,
+    key,
+    sorter: (a: any, b: any) => compareText(a[key], b[key]),
+  }
+}
+
 function makeActions(handleEdit: any, handleDelete: any, deleteMsg = 'Удалить эту запись?') {
   return {
     title: 'Действия',
@@ -53,8 +117,8 @@ function weightCol() {
     title: 'Вес',
     key: 'weight',
     width: 80,
-    sorter: (a: any, b: any) => a.weight - b.weight,
-    render: (row: any) => String(row.weight)
+    sorter: (a: any, b: any) => Number(a.weight ?? 0) - Number(b.weight ?? 0),
+    render: (row: any) => row.weight ?? '—'
   }
 }
 
@@ -63,6 +127,7 @@ function activeCol() {
     title: 'Активен',
     key: 'is_active',
     width: 90,
+    sorter: (a: any, b: any) => Number(Boolean(a.is_active)) - Number(Boolean(b.is_active)),
     render: (row: any) => h(NTag, {
       type: row.is_active ? 'success' : 'default',
       size: 'small',
@@ -81,8 +146,8 @@ const dictConfigs: Record<string, any> = {
     hasDescription: false,
     hasActive: false,
     columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
-      { title: 'ID', key: 'id', width: 60 },
-      { title: 'ФИО', key: 'full_name', sorter: true },
+      idCol(),
+      textCol('ФИО', 'full_name'),
       makeActions(handleEdit, handleDelete, 'Удалить этого тренера?')
     ]
   },
@@ -94,8 +159,8 @@ const dictConfigs: Record<string, any> = {
     hasDescription: false,
     hasActive: false,
     columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
-      { title: 'ID', key: 'id', width: 60 },
-      { title: 'Название', key: 'name', sorter: true },
+      idCol(),
+      textCol('Название', 'name'),
       weightCol(),
       makeActions(handleEdit, handleDelete, 'Удалить эту роль?')
     ]
@@ -108,8 +173,8 @@ const dictConfigs: Record<string, any> = {
     hasDescription: false,
     hasActive: false,
     columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
-      { title: 'ID', key: 'id', width: 60 },
-      { title: 'Тип', key: 'name', sorter: true },
+      idCol(),
+      textCol('Тип', 'name'),
       weightCol(),
       makeActions(handleEdit, handleDelete, 'Удалить этот тип?')
     ]
@@ -122,10 +187,96 @@ const dictConfigs: Record<string, any> = {
     hasDescription: false,
     hasActive: false,
     columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
-      { title: 'ID', key: 'id', width: 60 },
-      { title: 'Проект', key: 'name', sorter: true },
+      {
+        title: '№',
+        key: 'row_number',
+        width: 60,
+        render: (_row: any, index: number) => index + 1,
+      },
+      textCol('Проект', 'name'),
+      {
+        title: 'Индекс',
+        key: 'audit_index',
+        sorter: (a: any, b: any) => compareText(a.audit_index, b.audit_index),
+        render: (row: any) => row.audit_index || '—',
+      },
+      {
+        title: 'Статус',
+        key: 'status_code',
+        sorter: (a: any, b: any) => compareText(
+          projectStatusLabels[a.status_code] || a.status_code,
+          projectStatusLabels[b.status_code] || b.status_code,
+        ),
+        render: (row: any) => projectStatusLabels[row.status_code] || row.status_code || '—',
+      },
+      {
+        title: 'Тип',
+        key: 'project_type_id',
+        sorter: (a: any, b: any) => compareText(
+          projectTypeNames.value[a.project_type_id],
+          projectTypeNames.value[b.project_type_id],
+        ),
+        render: (row: any) => projectTypeNames.value[row.project_type_id] || '—',
+      },
       weightCol(),
       makeActions(handleEdit, handleDelete, 'Удалить этот проект?')
+    ]
+  },
+  cities: {
+    title: 'Города',
+    table: 'cities',
+    labelField: 'name',
+    hasWeight: false,
+    hasDescription: false,
+    hasActive: true,
+    columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
+      idCol(),
+      textCol('Город', 'name'),
+      activeCol(),
+      makeActions(handleEdit, handleDelete)
+    ]
+  },
+  divisions: {
+    title: 'Подразделения',
+    table: 'divisions',
+    labelField: 'name',
+    hasWeight: false,
+    hasDescription: false,
+    hasActive: true,
+    columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
+      idCol(),
+      textCol('Подразделение', 'name'),
+      activeCol(),
+      makeActions(handleEdit, handleDelete)
+    ]
+  },
+  directions: {
+    title: 'Направления',
+    table: 'directions',
+    labelField: 'name',
+    hasWeight: false,
+    hasDescription: true,
+    hasActive: true,
+    columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
+      idCol(),
+      textCol('Направление', 'name'),
+      { ...textCol('Описание', 'description'), ellipsis: { tooltip: true } },
+      activeCol(),
+      makeActions(handleEdit, handleDelete)
+    ]
+  },
+  annual_budget_items: {
+    title: 'Бюджет года',
+    table: 'annual_budget_items',
+    labelField: 'name',
+    hasWeight: false,
+    hasDescription: false,
+    hasActive: true,
+    columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
+      idCol(),
+      textCol('Строка бюджета', 'name'),
+      activeCol(),
+      makeActions(handleEdit, handleDelete)
     ]
   },
   activity_types: {
@@ -136,9 +287,9 @@ const dictConfigs: Record<string, any> = {
     hasDescription: true,
     hasActive: true,
     columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
-      { title: 'ID', key: 'id', width: 60 },
-      { title: 'Название', key: 'name', sorter: true },
-      { title: 'Описание', key: 'description', ellipsis: { tooltip: true } },
+      idCol(),
+      textCol('Название', 'name'),
+      { ...textCol('Описание', 'description'), ellipsis: { tooltip: true } },
       weightCol(),
       activeCol(),
       makeActions(handleEdit, handleDelete)
@@ -152,9 +303,9 @@ const dictConfigs: Record<string, any> = {
     hasDescription: true,
     hasActive: true,
     columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
-      { title: 'ID', key: 'id', width: 60 },
-      { title: 'Название', key: 'name', sorter: true },
-      { title: 'Описание', key: 'description', ellipsis: { tooltip: true } },
+      idCol(),
+      textCol('Название', 'name'),
+      { ...textCol('Описание', 'description'), ellipsis: { tooltip: true } },
       weightCol(),
       activeCol(),
       makeActions(handleEdit, handleDelete)
@@ -168,9 +319,9 @@ const dictConfigs: Record<string, any> = {
     hasDescription: true,
     hasActive: true,
     columns: (handleEdit: any, handleDelete: any): DataTableColumns<any> => [
-      { title: 'ID', key: 'id', width: 60 },
-      { title: 'Название', key: 'name', sorter: true },
-      { title: 'Описание', key: 'description', ellipsis: { tooltip: true } },
+      idCol(),
+      textCol('Название', 'name'),
+      { ...textCol('Описание', 'description'), ellipsis: { tooltip: true } },
       weightCol(),
       activeCol(),
       makeActions(handleEdit, handleDelete)
@@ -179,19 +330,124 @@ const dictConfigs: Record<string, any> = {
 }
 
 const currentConfig = computed(() => dictConfigs[activeTab.value])
+const visibleDictConfigs = computed(() => {
+  if (props.projectsOnly) {
+    return { project_names: dictConfigs.project_names }
+  }
+  if (props.trainersOnly) {
+    return { trainers: dictConfigs.trainers }
+  }
+  return Object.fromEntries(
+    Object.entries(dictConfigs).filter(([key]) => (
+      key !== 'project_names' && key !== 'trainers'
+    )),
+  )
+})
+const projectStatusCounts = computed<Record<string, number>>(() => {
+  const counts = Object.fromEntries(
+    projectStatusOptions.map(option => [option.value, 0]),
+  ) as Record<string, number>
 
-async function loadData() {
+  for (const item of items.value) {
+    if (item.status_code && item.status_code in counts) {
+      counts[item.status_code] += 1
+    }
+  }
+  return counts
+})
+const projectFiltersActive = computed(() => (
+  Boolean(projectSearch.value.trim())
+  || visibleProjectStatuses.value.length !== projectStatusOptions.length
+))
+const filteredItems = computed(() => {
+  if (activeTab.value !== 'project_names') return items.value
+
+  const query = projectSearch.value.trim().toLocaleLowerCase('ru-RU')
+  return items.value.filter((item) => {
+    if (!item.status_code || !visibleProjectStatuses.value.includes(item.status_code)) {
+      return false
+    }
+    if (!query) return true
+
+    const projectType = item.project_type_id
+      ? projectTypeNames.value[item.project_type_id]
+      : ''
+    const status = item.status_code
+      ? projectStatusLabels[item.status_code] || item.status_code
+      : ''
+    return [item.id, item.name, item.audit_index, projectType, status]
+      .some(value => String(value ?? '').toLocaleLowerCase('ru-RU').includes(query))
+  })
+})
+
+function dictionaryErrorMessage(error: unknown) {
+  const value = error as { code?: string; message?: string }
+  if (value?.code === 'PGRST205') {
+    return 'Схема базы данных не соответствует версии приложения. Обратитесь к администратору.'
+  }
+  return error instanceof Error ? error.message : 'неизвестная ошибка'
+}
+
+async function loadData(tab?: string) {
+  const requestedTab = typeof tab === 'string' ? tab : activeTab.value
+  const config = dictConfigs[requestedTab]
+  if (!config) return
+
+  const requestId = ++loadRequestId
   loading.value = true
+  items.value = []
   try {
-    items.value = await listDictionary(currentConfig.value.table as DictionaryTable)
+    const [rows, projectTypes] = await Promise.all([
+      listDictionary(config.table as DictionaryTable),
+      requestedTab === 'project_names'
+        ? listDictionary('project_types')
+        : Promise.resolve([]),
+    ])
+    if (requestedTab === 'project_names') {
+      projectTypeNames.value = Object.fromEntries(projectTypes.map(item => [item.id, item.name || '—']))
+    }
+    if (requestId === loadRequestId) items.value = rows
   } catch (error: unknown) {
-    message.error('Ошибка загрузки: ' + (error instanceof Error ? error.message : 'неизвестная ошибка'))
+    if (requestId === loadRequestId) {
+      items.value = []
+      message.error('Ошибка загрузки: ' + dictionaryErrorMessage(error))
+    }
   } finally {
-    loading.value = false
+    if (requestId === loadRequestId) loading.value = false
   }
 }
 
+function handleTabChange(tab: string) {
+  projectSearch.value = ''
+  loadData(tab)
+}
+
+watch(
+  [() => props.projectsOnly, () => props.trainersOnly],
+  () => {
+    const nextTab = routeTab()
+    if (activeTab.value === nextTab) return
+
+    activeTab.value = nextTab
+    resetProjectFilters()
+    loadData(nextTab)
+  },
+)
+
+function resetProjectFilters() {
+  projectSearch.value = ''
+  visibleProjectStatuses.value = projectStatusOptions.map(option => option.value)
+}
+
 function handleEdit(row: any) {
+  if (activeTab.value === 'trainers') {
+    router.push(`/admin/trainers/${row.id}/edit`)
+    return
+  }
+  if (activeTab.value === 'project_names') {
+    router.push(`/admin/projects/${row.id}/edit`)
+    return
+  }
   editingId.value = row.id
   const config = dictConfigs[activeTab.value]
   formData.value.name = row[config.labelField] || ''
@@ -245,6 +501,14 @@ async function handleSave() {
 }
 
 function openAddModal() {
+  if (activeTab.value === 'trainers') {
+    router.push('/admin/trainers/new')
+    return
+  }
+  if (activeTab.value === 'project_names') {
+    router.push('/admin/projects/new')
+    return
+  }
   editingId.value = null
   formData.value = { name: '', full_name: '', description: '', weight: 1.0, is_active: true }
   showModal.value = true
@@ -258,14 +522,49 @@ onMounted(() => {
 <template>
   <DashboardLayout>
     <div class="mb-6">
-      <n-h2 class="!m-0">Управление словарями</n-h2>
-      <n-text depth="3">Редактирование справочных данных системы</n-text>
+      <n-h2 class="!m-0">
+        {{ projectsOnly ? 'Проекты' : trainersOnly ? 'Тренеры' : 'Управление словарями' }}
+      </n-h2>
+      <n-text depth="3">
+        {{ projectsOnly
+          ? 'Управление карточками проектов'
+          : trainersOnly
+            ? 'Управление карточками тренеров'
+            : 'Редактирование справочных данных системы' }}
+      </n-text>
     </div>
 
     <n-card>
-      <n-tabs type="line" v-model:value="activeTab" @update:value="loadData">
-        <n-tab-pane v-for="(config, key) in dictConfigs" :key="key" :name="key" :tab="config.title">
-          <div class="flex justify-end mb-4">
+      <n-tabs
+        v-model:value="activeTab"
+        type="line"
+        :class="{ 'single-section-tabs': projectsOnly || trainersOnly }"
+        @update:value="handleTabChange"
+      >
+        <n-tab-pane v-for="(config, key) in visibleDictConfigs" :key="key" :name="key" :tab="config.title">
+          <div class="flex items-center justify-between gap-4 mb-4">
+            <div v-if="key === 'project_names'" class="flex flex-wrap items-center gap-4 flex-1">
+              <n-input
+                v-model:value="projectSearch"
+                clearable
+                placeholder="Поиск по названию, индексу, статусу или типу"
+                style="max-width: 440px"
+              />
+              <div class="flex flex-wrap items-center gap-3">
+                <n-text depth="3">Показывать статусы:</n-text>
+                <n-checkbox-group v-model:value="visibleProjectStatuses">
+                  <n-space wrap>
+                    <n-checkbox
+                      v-for="option in projectStatusOptions"
+                      :key="option.value"
+                      :value="option.value"
+                      :label="`${option.label} (${projectStatusCounts[option.value] ?? 0})`"
+                    />
+                  </n-space>
+                </n-checkbox-group>
+              </div>
+            </div>
+            <div v-else />
             <n-button type="primary" @click="openAddModal">
               <template #icon><n-icon><AddIcon /></n-icon></template>
               Добавить запись
@@ -274,11 +573,32 @@ onMounted(() => {
 
           <n-data-table
             :columns="config.columns(handleEdit, handleDelete)"
-            :data="items"
+            :data="filteredItems"
             :loading="loading"
             :bordered="false"
             size="small"
-          />
+          >
+            <template #empty>
+              <n-empty
+                :description="activeTab === 'project_names' && projectFiltersActive
+                  ? 'Проекты не найдены'
+                  : 'Записей пока нет'"
+              >
+                <template #extra>
+                  <n-button
+                    v-if="activeTab === 'project_names' && projectFiltersActive"
+                    size="small"
+                    @click="resetProjectFilters"
+                  >
+                    Сбросить фильтры
+                  </n-button>
+                  <n-button v-else size="small" type="primary" @click="openAddModal">
+                    Добавить первую запись
+                  </n-button>
+                </template>
+              </n-empty>
+            </template>
+          </n-data-table>
         </n-tab-pane>
       </n-tabs>
     </n-card>
@@ -341,3 +661,13 @@ onMounted(() => {
     </n-modal>
   </DashboardLayout>
 </template>
+
+<style scoped>
+.single-section-tabs :deep(.n-tabs-nav) {
+  display: none;
+}
+
+.single-section-tabs :deep(.n-tab-pane) {
+  padding-top: 0;
+}
+</style>

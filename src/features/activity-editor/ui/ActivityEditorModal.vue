@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { NButton, NModal, NPopconfirm, NSpin, useMessage } from 'naive-ui'
 import {
   activityFormToPayload,
@@ -53,7 +53,7 @@ const compact = ref(window.matchMedia('(max-width: 700px)').matches)
 const currentRecord = ref<ActivityRecord | null>(null)
 const references = ref<ActivityReferences>(emptyReferences())
 const trainers = ref<SelectOption[]>([])
-const form = reactive<ActivityFormValues>(createActivityForm())
+const form = ref<ActivityFormValues>(createActivityForm())
 
 async function prepareEditor() {
   if (!props.show) return
@@ -70,10 +70,10 @@ async function prepareEditor() {
       const record = await getActivity(props.recordId)
       currentRecord.value = record
       const participantIds = await getActivityParticipantIds(record)
-      Object.assign(form, activityToForm(record, participantIds))
+      form.value = activityToForm(record, participantIds)
     } else {
       currentRecord.value = null
-      Object.assign(form, createActivityForm(props.trainerId, props.initialSchedule))
+      form.value = createActivityForm(props.trainerId, props.initialSchedule)
     }
   } catch (error: unknown) {
     const reason = error instanceof Error ? error.message : 'Неизвестная ошибка'
@@ -95,12 +95,12 @@ const groupReadOnly = () =>
 
 async function handleSave() {
   if (groupReadOnly()) return
-  const validationError = validateActivityForm(form)
+  const validationError = validateActivityForm(form.value)
   if (validationError) {
     message.warning(validationError)
     return
   }
-  const trainerId = props.trainerId ?? form.participant_ids[0]
+  const trainerId = props.trainerId ?? form.value.participant_ids[0]
   if (!trainerId) return
 
   saving.value = true
@@ -108,9 +108,9 @@ async function handleSave() {
     await saveActivity({
       recordId: props.recordId,
       trainerId,
-      participantIds: form.participant_ids,
+      participantIds: form.value.participant_ids,
       canManageParticipants: props.canManageParticipants,
-      payload: activityFormToPayload(form),
+      payload: activityFormToPayload(form.value),
     })
     message.success(props.recordId ? 'Активность обновлена' : 'Активность добавлена')
     emit('update:show', false)

@@ -45,23 +45,22 @@
 src/
 ├── main.ts                     # Точка входа: инициализация Vue, Pinia, Router, Naive UI
 ├── App.vue                     # Корневой компонент
-├── supabase.ts                 # Инициализация Supabase-клиента
 ├── router/
 │   └── index.ts                # Маршруты + navigation guard (проверка авторизации/ролей)
-├── stores/
-│   ├── auth.ts                 # Pinia-стор аутентификации (профиль, вход/выход)
-│   └── theme.ts                # Pinia-стор темы (light / dark / auto)
-├── composables/
-│   └── useSupabaseTable.ts     # Переиспользуемая CRUD-логика для любой таблицы Supabase
-├── layouts/
-│   └── DashboardLayout.vue     # Общий каркас: сайдбар, шапка, переключатель темы, выход
+├── shared/                     # Supabase-клиент, типы и общие компоненты
+├── entities/                   # Модели и API активностей, проектов, тренеров и справочников
+├── features/                   # Редакторы активностей, проектов и тренеров
+├── pages/                      # Точки входа страниц по FSD
+├── widgets/                    # Общий layout приложения
 └── views/
     ├── HomeView.vue            # Стартовый роут — восстановление сессии и редирект по роли
     ├── LoginView.vue           # Экран входа
     ├── TrainerDashboard.vue    # Рабочий стол тренера (список задач/проектов + CRUD)
     ├── AdminDashboard.vue      # Аналитический дашборд с графиками ECharts
     ├── AdminTableView.vue      # Сводная матрица "тренеры × роли"
-    └── DictionariesView.vue    # Управление справочниками (словарями)
+    ├── DictionariesView.vue    # Проекты, тренеры и управление словарями
+    ├── ProjectEditView.vue     # Карточка проекта
+    └── TrainerEditView.vue     # Карточка тренера
 ```
 
 ### Ключевые архитектурные решения
@@ -83,10 +82,18 @@ src/
 
 | Таблица | Назначение | Основные поля |
 |---------|-----------|---------------|
-| `trainers` | Тренеры (пользователи) | `id`, `full_name` |
+| `trainers` | Тренеры (пользователи) | `id`, `full_name`, `city_id`, `division_id` |
 | `roles` | Роли в проектах | `id`, `name`, `weight` |
 | `project_types` | Типы проектов | `id`, `name`, `weight` |
-| `project_names` | Названия проектов | `id`, `name`, `weight` |
+| `project_names` | Проекты и модули | `id`, `name`, `audit_index`, `status_code`, `project_type_id`, `parent_project_id`, `participant_count` |
+| `project_statuses` | Статусы проектов | `code`, `name`, `sort_order`, `is_active`, `is_terminal` |
+| `project_delivery_formats` | Форматы проведения для ЦА и ГУ | `code`, `name`, `sort_order`, `is_active` |
+| `annual_budget_items` | Строки бюджета года | `id`, `name`, `is_active` |
+| `directions` | Направления проектов | `id`, `name`, `description`, `is_active` |
+| `project_direction_links` | Связи проектов с направлениями | `project_id`, `direction_id` |
+| `project_materials` | Материалы проектов | `project_id`, `type_code`, `status_code`, `title`, `location` |
+| `cities`, `divisions` | Справочники профиля тренера | `id`, `name`, `is_active` |
+| `trainer_certifications` | Допуски тренеров к проектам | `trainer_id`, `project_id`, `status_code`, `valid_from`, `valid_until` |
 | `activity_types` | Типы активностей | `id`, `name`, `description`, `weight`, `is_active` |
 | `delivery_formats` | Форматы выполнения | `id`, `name`, `description`, `weight`, `is_active` |
 | `recurrence_types` | Периодичность выполнения | `id`, `name`, `description`, `weight`, `is_active` |
@@ -145,7 +152,7 @@ src/
 
 ### Администратор
 
-Роль администратора — контроль, аналитика и управление справочниками. В сайдбаре доступны три раздела.
+Роль администратора — контроль, аналитика и ведение справочников, проектов и тренеров.
 
 #### 1. Аналитический дашборд (`/admin/dashboard`)
 
@@ -164,7 +171,11 @@ src/
 
 **Клик по строке** тренера открывает его рабочий стол в режиме администратора (`/admin/trainers/:id`) — там администратор может просматривать, добавлять и редактировать записи **от имени тренера**.
 
-#### 3. Управление словарями (`/admin/dictionaries`)
+#### 3. Проекты и тренеры
+
+Разделы `/admin/projects` и `/admin/trainers` содержат отдельные списки и полнофункциональные карточки. В проектах доступны поиск, фильтрация по статусам, структура модульной программы, материалы и параметры проведения. В карточке тренера ведутся профиль и проектные допуски.
+
+#### 4. Управление словарями (`/admin/dictionaries`)
 
 Табличный редактор всех справочников: тренеры, роли, типы проектов, проекты, типы активностей, форматы выполнения, периодичность. Для каждого справочника доступны добавление, редактирование и удаление. В зависимости от типа справочника в форме появляются дополнительные поля:
 
@@ -185,14 +196,14 @@ npm install
 # режим разработки (http://localhost:5173)
 npm run dev
 
-# продакшен-сборка (type-check + build)
-npm run build
+# архитектурная проверка, type-check и продакшен-сборка
+npm run check
 
 # локальный предпросмотр собранной версии
 npm run preview
 ```
 
-Скрипт `build` сначала выполняет проверку типов через `vue-tsc`, затем собирает бандл Vite.
+Скрипт `check` проверяет границы архитектуры, выполняет проверку типов через `vue-tsc` и собирает бандл Vite.
 
 ---
 

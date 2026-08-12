@@ -39,10 +39,48 @@ const router = createRouter({
       meta: { requiresAuth: true, role: "admin" },
     },
     {
+      path: "/admin/trainers",
+      name: "admin-trainers",
+      component: () => import("../pages/dictionaries"),
+      props: { trainersOnly: true },
+      meta: { requiresAuth: true, role: "admin" },
+    },
+    {
       path: "/admin/trainers/:id",
       name: "admin-trainer-view",
       component: () => import("../pages/trainer-dashboard"),
       props: true,
+      meta: { requiresAuth: true, role: "admin" },
+    },
+    {
+      path: "/admin/trainers/new",
+      name: "admin-trainer-create",
+      component: () => import("../pages/trainer-edit"),
+      meta: { requiresAuth: true, role: "admin" },
+    },
+    {
+      path: "/admin/trainers/:id/edit",
+      name: "admin-trainer-edit",
+      component: () => import("../pages/trainer-edit"),
+      meta: { requiresAuth: true, role: "admin" },
+    },
+    {
+      path: "/admin/projects",
+      name: "admin-projects",
+      component: () => import("../pages/dictionaries"),
+      props: { projectsOnly: true },
+      meta: { requiresAuth: true, role: "admin" },
+    },
+    {
+      path: "/admin/projects/new",
+      name: "admin-project-create",
+      component: () => import("../pages/project-edit"),
+      meta: { requiresAuth: true, role: "admin" },
+    },
+    {
+      path: "/admin/projects/:id/edit",
+      name: "admin-project-edit",
+      component: () => import("../pages/project-edit"),
       meta: { requiresAuth: true, role: "admin" },
     },
     {

@@ -49,10 +49,33 @@ function asOptions(
   return (rows || []).map(row => ({ label: row.name, value: row.id }))
 }
 
+function asProjectOptions(
+  rows: Array<{
+    id: number
+    name: string
+    parent_project?: { name: string } | null
+  }> | null,
+): SelectOption[] {
+  return (rows || []).map(row => ({
+    label: row.parent_project?.name
+      ? `${row.parent_project.name} / ${row.name}`
+      : row.name,
+    value: row.id,
+  }))
+}
+
 export async function getActivityReferences(): Promise<ActivityReferences> {
   const results = await Promise.all([
     supabase.from('project_types').select('id, name').order('name'),
-    supabase.from('project_names').select('id, name').order('name'),
+    supabase
+      .from('project_names')
+      .select(`
+        id, name, module_position,
+        parent_project:project_names!parent_project_id (name)
+      `)
+      .order('parent_project_id', { ascending: true, nullsFirst: true })
+      .order('module_position', { ascending: true, nullsFirst: false })
+      .order('name'),
     supabase.from('roles').select('id, name').order('name'),
     supabase.from('activity_types').select('id, name').eq('is_active', true).order('name'),
     supabase.from('delivery_formats').select('id, name').eq('is_active', true).order('name'),
@@ -61,9 +84,15 @@ export async function getActivityReferences(): Promise<ActivityReferences> {
   const error = results.find(result => result.error)?.error
   if (error) throw error
 
+  const projectRows = results[1].data as unknown as Array<{
+    id: number
+    name: string
+    parent_project?: { name: string } | null
+  }> | null
+
   return {
     projectTypes: asOptions(results[0].data),
-    projects: asOptions(results[1].data),
+    projects: asProjectOptions(projectRows),
     roles: asOptions(results[2].data),
     activityTypes: asOptions(results[3].data),
     deliveryFormats: asOptions(results[4].data),

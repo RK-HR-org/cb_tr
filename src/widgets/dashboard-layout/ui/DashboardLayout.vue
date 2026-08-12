@@ -35,6 +35,34 @@ const GanttIcon = () => h(
   ],
 )
 
+const ProjectsIcon = () => h(
+  'svg',
+  {
+    xmlns: 'http://www.w3.org/2000/svg',
+    viewBox: '0 0 24 24',
+  },
+  [
+    h('path', {
+      fill: 'currentColor',
+      d: 'M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9zm6.82 6L12 12.72L5.18 9L12 5.28zM17 15.99l-5 2.73l-5-2.73v-3.72L12 15l5-2.73z',
+    }),
+  ],
+)
+
+const TrainersIcon = () => h(
+  'svg',
+  {
+    xmlns: 'http://www.w3.org/2000/svg',
+    viewBox: '0 0 48 48',
+  },
+  [
+    h('path', {
+      fill: 'currentColor',
+      d: 'M24 7.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7M18 11a6 6 0 1 1 12 0a6 6 0 0 1-12 0m19-1.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 0 0 0-5M32 12a5 5 0 1 1 10 0a5 5 0 0 1-10 0M8.5 12a2.5 2.5 0 1 1 5 0a2.5 2.5 0 0 1-5 0M11 7a5 5 0 1 0 0 10a5 5 0 0 0 0-10m4 16.25A4.25 4.25 0 0 1 19.25 19h9.5A4.25 4.25 0 0 1 33 23.25V34a9 9 0 1 1-18 0zm9 17.25a6.5 6.5 0 0 0 6.5-6.5V23.25a1.75 1.75 0 0 0-1.75-1.75h-9.5a1.75 1.75 0 0 0-1.75 1.75V34a6.5 6.5 0 0 0 6.5 6.5m-13-3a4.5 4.5 0 0 0 2.367-.672c.219.826.532 1.613.926 2.35A7 7 0 0 1 4 33v-9.749A4.25 4.25 0 0 1 8.25 19h5.5q.433.001.841.083a6.24 6.24 0 0 0-1.343 2.417H8.25a1.75 1.75 0 0 0-1.75 1.75V33a4.5 4.5 0 0 0 4.5 4.5M37 40a7 7 0 0 1-3.293-.821c.394-.738.707-1.525.926-2.351A4.5 4.5 0 0 0 41.5 33v-9.75a1.75 1.75 0 0 0-1.75-1.75h-4.998a6.24 6.24 0 0 0-1.344-2.417q.41-.082.842-.083h5.5A4.25 4.25 0 0 1 44 23.25V33a7 7 0 0 1-7 7',
+    }),
+  ],
+)
+
 async function handleLogout() {
   await authStore.signOut()
   router.push('/login')
@@ -91,6 +119,20 @@ async function handleLogout() {
             show: !isAdmin,
             icon: () => h(NIcon, null, { default: () => h(StatsIcon) }),
             onClick: () => router.push('/trainer/dashboard')
+          },
+          {
+            label: 'Проекты',
+            key: 'projects',
+            show: isAdmin,
+            icon: () => h(NIcon, null, { default: () => h(ProjectsIcon) }),
+            onClick: () => router.push('/admin/projects')
+          },
+          {
+            label: 'Тренеры',
+            key: 'trainers',
+            show: isAdmin,
+            icon: () => h(NIcon, null, { default: () => h(TrainersIcon) }),
+            onClick: () => router.push('/admin/trainers')
           },
           {
             label: 'Словари',

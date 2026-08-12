@@ -24,7 +24,7 @@ const loadedEventCount = ref(0)
 const loadedAssignmentCount = ref(0)
 const showActivityEditor = ref(false)
 const editingActivityId = ref<number | null>(null)
-const zoom = ref('month')
+const zoom = ref('week')
 const selectedDate = ref<number>(Date.now())
 const ganttRef = ref<{
   scrollToDate: (date: Date | string | number, options?: { align?: 'start' | 'center'; behavior?: ScrollBehavior }) => void
@@ -93,7 +93,7 @@ async function scrollToDate(timestamp: number) {
   })
 }
 
-async function scrollToToday() {
+async function navigateToToday(behavior: ScrollBehavior) {
   const today = new Date()
   selectedDate.value = today.getTime()
 
@@ -102,8 +102,12 @@ async function scrollToToday() {
 
   await nextTick()
   requestAnimationFrame(() => {
-    ganttRef.value?.scrollToToday({ align: 'center', behavior: 'smooth' })
+    ganttRef.value?.scrollToToday({ align: 'center', behavior })
   })
+}
+
+async function scrollToToday() {
+  await navigateToToday('smooth')
 }
 
 type ProjectDateFields = {
@@ -361,7 +365,7 @@ async function loadGanttData() {
     loading.value = false
     if (rows.value.length) {
       await nextTick()
-      await scrollToToday()
+      await navigateToToday('auto')
     }
   }
 }
