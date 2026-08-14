@@ -20,7 +20,9 @@ export type DictionaryRecord = {
   weight?: number | null
   is_active?: boolean | null
   project_type_id?: number | null
+  parent_project_id?: number | null
   status_code?: string | null
+  is_in_application_campaign?: boolean | null
 }
 
 export type DictionaryPayload = Omit<DictionaryRecord, 'id'> & Record<

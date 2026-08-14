@@ -92,6 +92,7 @@ src/
 | `directions` | Направления проектов | `id`, `name`, `description`, `is_active` |
 | `project_direction_links` | Связи проектов с направлениями | `project_id`, `direction_id` |
 | `project_materials` | Материалы проектов | `project_id`, `type_code`, `status_code`, `title`, `location` |
+| `production_calendar_days` | Праздничные дни и рабочие субботы для нормирования | `event_date`, `day_type`, `name` |
 | `cities`, `divisions` | Справочники профиля тренера | `id`, `name`, `is_active` |
 | `trainer_certifications` | Допуски тренеров к проектам | `trainer_id`, `project_id`, `status_code`, `valid_from`, `valid_until` |
 | `activity_types` | Типы активностей | `id`, `name`, `description`, `weight`, `is_active` |
@@ -174,6 +175,8 @@ src/
 #### 3. Проекты и тренеры
 
 Разделы `/admin/projects` и `/admin/trainers` содержат отдельные списки и полнофункциональные карточки. В проектах доступны поиск, фильтрация по статусам, структура модульной программы, материалы и параметры проведения. В карточке тренера ведутся профиль и проектные допуски.
+
+Раздел `/admin/work-norms` содержит редактируемый производственный календарь. Его праздничные дни и рабочие субботы действуют для всех тренеров и подсвечиваются в календаре и Gantt.
 
 #### 4. Управление словарями (`/admin/dictionaries`)
 

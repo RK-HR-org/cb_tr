@@ -11,7 +11,8 @@ import type {
 const PROJECT_FIELDS = `
   id, name, audit_index, weight, status_code, project_type_id, parent_project_id, module_position,
   customer, lead_methodologist_id, target_audience, goals, short_description,
-  duration_days, duration_hours, participant_count, central_office_format_code,
+  duration_days, duration_hours, participant_count, is_in_application_campaign,
+  central_office_format_code,
   main_department_format_code, annual_budget_item_id,
   project_type:project_types!project_names_project_type_id_fkey (id, name),
   parent_project:project_names!parent_project_id (id, name),

@@ -95,6 +95,12 @@ const router = createRouter({
       component: () => import("../pages/admin-gantt"),
       meta: { requiresAuth: true, role: "admin" },
     },
+    {
+      path: "/admin/work-norms",
+      name: "admin-work-norms",
+      component: () => import("../pages/work-norms"),
+      meta: { requiresAuth: true, role: "admin" },
+    },
   ],
 });
 

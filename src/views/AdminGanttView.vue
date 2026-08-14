@@ -6,6 +6,7 @@ import { useMessage, useThemeVars, NButton, NButtonGroup, NCard, NDatePicker, NE
 import { useRouter } from 'vue-router'
 import {
   Gantt,
+  GanttNonWorking,
   type GanttRowData,
   type GanttTaskEvent,
   type GanttZoomLevel,
@@ -14,12 +15,18 @@ import { ru } from 'date-fns/locale'
 import '@dizzy_yakov/vue-gantt/styles.css'
 import { listGanttActivities } from '../entities/activity'
 import { listTrainers } from '../entities/trainer'
+import {
+  listProductionCalendarDays,
+  type ProductionCalendarDay,
+} from '../entities/production-calendar'
+import { ProductionCalendarBands } from '../features/production-calendar-gantt'
 
 const router = useRouter()
 const message = useMessage()
 const themeVars = useThemeVars()
 const loading = ref(true)
 const rows = ref<GanttRowData[]>([])
+const productionCalendarDays = ref<ProductionCalendarDay[]>([])
 const loadedEventCount = ref(0)
 const loadedAssignmentCount = ref(0)
 const showActivityEditor = ref(false)
@@ -347,10 +354,12 @@ function buildRows(items: any[], trainerRecords: any[]): GanttRowData[] {
 async function loadGanttData() {
   loading.value = true
   try {
-    const [trainersData, allProjects] = await Promise.all([
+    const [trainersData, allProjects, productionDays] = await Promise.all([
       listTrainers(),
       listGanttActivities(),
+      listProductionCalendarDays(),
     ])
+    productionCalendarDays.value = productionDays
     const projectItems = allProjects.filter(item => resolveProjectRange(item))
     loadedAssignmentCount.value = projectItems.length
     loadedEventCount.value = new Set(
@@ -432,6 +441,10 @@ onMounted(() => {
           <NText depth="3">
             Событий: {{ loadedEventCount }} · назначений: {{ loadedAssignmentCount }}
           </NText>
+          <div class="gantt-legend" aria-label="Обозначения производственного календаря">
+            <span><i class="legend-swatch legend-swatch--holiday" />Праздничный день</span>
+            <span><i class="legend-swatch legend-swatch--working" />Рабочая суббота</span>
+          </div>
         </div>
         <div v-if="rows.length" class="gantt-shell flex-1 min-h-0 overflow-hidden" :style="ganttTheme">
           <Gantt
@@ -455,6 +468,10 @@ onMounted(() => {
             aria-label="Задачи тренеров по времени"
             height="100%"
           >
+            <template #non-working>
+              <GanttNonWorking />
+              <ProductionCalendarBands :days="productionCalendarDays" />
+            </template>
             <template #summaryBar="{ row, collapsed, left, width }">
               <NTooltip v-if="collapsed" trigger="hover" placement="top">
                 <template #trigger>
@@ -534,6 +551,38 @@ onMounted(() => {
 
 .date-navigation {
   width: 160px;
+}
+
+.gantt-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  color: v-bind('themeVars.textColor3');
+  font-size: 12px;
+}
+
+.gantt-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-swatch {
+  width: 15px;
+  height: 11px;
+  border-radius: 3px;
+}
+
+.legend-swatch--holiday {
+  background: rgba(239, 68, 68, .28);
+  border: 1px solid rgba(220, 38, 38, .45);
+}
+
+.legend-swatch--working {
+  background: rgba(234, 179, 8, .32);
+  border: 1px solid rgba(202, 138, 4, .5);
 }
 
 :deep(.gantt-root) {

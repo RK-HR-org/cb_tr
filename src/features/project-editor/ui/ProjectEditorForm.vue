@@ -90,6 +90,7 @@ const form = ref({
   duration_days: null as number | null,
   duration_hours: null as number | null,
   participant_count: null as number | null,
+  is_in_application_campaign: false,
   central_office_format_code: null as string | null,
   main_department_format_code: null as string | null,
   annual_budget_item_id: null as number | null,
@@ -280,6 +281,7 @@ async function load() {
         duration_days: project.duration_days,
         duration_hours: project.duration_hours,
         participant_count: project.participant_count,
+        is_in_application_campaign: project.is_in_application_campaign,
         central_office_format_code: project.central_office_format_code,
         main_department_format_code: project.main_department_format_code,
         annual_budget_item_id: project.annual_budget_item_id,
@@ -356,6 +358,7 @@ async function submitProject() {
       duration_days: form.value.duration_days,
       duration_hours: form.value.duration_hours,
       participant_count: form.value.participant_count,
+      is_in_application_campaign: form.value.is_in_application_campaign,
       central_office_format_code: form.value.central_office_format_code,
       main_department_format_code: form.value.main_department_format_code,
       annual_budget_item_id: form.value.annual_budget_item_id,
@@ -455,6 +458,12 @@ onMounted(load)
               </NFormItem>
             </NGridItem>
           </NGrid>
+          <NFormItem label="В заявочной компании">
+            <NSwitch v-model:value="form.is_in_application_campaign">
+              <template #checked>Да</template>
+              <template #unchecked>Нет</template>
+            </NSwitch>
+          </NFormItem>
 
           <NGrid v-if="isModule" :cols="2" :x-gap="16">
             <NGridItem>

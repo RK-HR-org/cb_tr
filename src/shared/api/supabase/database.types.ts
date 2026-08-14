@@ -92,6 +92,7 @@ export type ProjectRow = {
   duration_days: number | null
   duration_hours: number | null
   participant_count: number | null
+  is_in_application_campaign: boolean
   central_office_format_code: string | null
   main_department_format_code: string | null
   annual_budget_item_id: number | null
@@ -114,6 +115,7 @@ export type ProjectInsert = {
   duration_days?: number | null
   duration_hours?: number | null
   participant_count?: number | null
+  is_in_application_campaign?: boolean
   central_office_format_code?: string | null
   main_department_format_code?: string | null
   annual_budget_item_id?: number | null
@@ -163,6 +165,38 @@ export type ProjectMaterialInsert = {
   title?: string | null
   location?: string | null
   description?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export type ProductionCalendarDayRow = {
+  id: number
+  event_date: string
+  day_type: 'holiday' | 'working_saturday'
+  name: string
+  created_at: string
+  updated_at: string
+}
+
+export type ProductionCalendarDayInsert = {
+  id?: number
+  event_date: string
+  day_type: 'holiday' | 'working_saturday'
+  name: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type WorkNormSettingRow = {
+  year: number
+  training_days_per_trainer_week: number
+  created_at: string
+  updated_at: string
+}
+
+export type WorkNormSettingInsert = {
+  year: number
+  training_days_per_trainer_week?: number
   created_at?: string
   updated_at?: string
 }
@@ -263,6 +297,11 @@ export type Database = {
         TrainerCertificationInsert
       >
       project_materials: TableDefinition<ProjectMaterialRow, ProjectMaterialInsert>
+      production_calendar_days: TableDefinition<
+        ProductionCalendarDayRow,
+        ProductionCalendarDayInsert
+      >
+      work_norm_settings: TableDefinition<WorkNormSettingRow, WorkNormSettingInsert>
     }
     Views: {
       trainer_effective_project_access: {

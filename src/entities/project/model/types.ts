@@ -15,6 +15,7 @@ export type Project = {
   duration_days: number | null
   duration_hours: number | null
   participant_count: number | null
+  is_in_application_campaign: boolean
   central_office_format_code: string | null
   main_department_format_code: string | null
   annual_budget_item_id: number | null
@@ -43,6 +44,7 @@ export type ProjectPayload = {
   duration_days: number | null
   duration_hours: number | null
   participant_count: number | null
+  is_in_application_campaign: boolean
   central_office_format_code: string | null
   main_department_format_code: string | null
   annual_budget_item_id: number | null

@@ -6,6 +6,18 @@ import type {
 } from '../model/types'
 
 export async function listDictionary(table: DictionaryTable): Promise<DictionaryRecord[]> {
+  if (table === 'project_names') {
+    const { data, error } = await supabase
+      .from('project_names')
+      .select(`
+        id, name, audit_index, weight, status_code, project_type_id,
+        parent_project_id, is_in_application_campaign
+      `)
+      .order('id', { ascending: true })
+    if (error) throw error
+    return (data || []) as DictionaryRecord[]
+  }
+
   const { data, error } = await supabase
     .from(table)
     .select('*')

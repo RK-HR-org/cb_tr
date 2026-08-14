@@ -36,6 +36,7 @@ const items = ref<DictionaryRecord[]>([])
 const projectTypeNames = ref<Record<number, string>>({})
 const projectSearch = ref('')
 const visibleProjectStatuses = ref<string[]>([])
+const applicationCampaignOnly = ref(false)
 const loading = ref(false)
 let loadRequestId = 0
 
@@ -197,8 +198,14 @@ const dictConfigs: Record<string, any> = {
       {
         title: 'Индекс',
         key: 'audit_index',
+        width: 140,
         sorter: (a: any, b: any) => compareText(a.audit_index, b.audit_index),
-        render: (row: any) => row.audit_index || '—',
+        render: (row: any) => {
+          const auditIndex = String(row.audit_index ?? '').trim()
+          return auditIndex
+            ? h(NTag, { type: 'info', size: 'small', bordered: false }, { default: () => auditIndex })
+            : '—'
+        },
       },
       {
         title: 'Статус',
@@ -358,6 +365,7 @@ const projectStatusCounts = computed<Record<string, number>>(() => {
 const projectFiltersActive = computed(() => (
   Boolean(projectSearch.value.trim())
   || visibleProjectStatuses.value.length !== projectStatusOptions.length
+  || applicationCampaignOnly.value
 ))
 const filteredItems = computed(() => {
   if (activeTab.value !== 'project_names') return items.value
@@ -365,6 +373,9 @@ const filteredItems = computed(() => {
   const query = projectSearch.value.trim().toLocaleLowerCase('ru-RU')
   return items.value.filter((item) => {
     if (!item.status_code || !visibleProjectStatuses.value.includes(item.status_code)) {
+      return false
+    }
+    if (applicationCampaignOnly.value && item.is_in_application_campaign !== true) {
       return false
     }
     if (!query) return true
@@ -419,6 +430,7 @@ async function loadData(tab?: string) {
 
 function handleTabChange(tab: string) {
   projectSearch.value = ''
+  applicationCampaignOnly.value = false
   loadData(tab)
 }
 
@@ -437,6 +449,11 @@ watch(
 function resetProjectFilters() {
   projectSearch.value = ''
   visibleProjectStatuses.value = projectStatusOptions.map(option => option.value)
+  applicationCampaignOnly.value = false
+}
+
+function dictionaryRowKey(row: DictionaryRecord) {
+  return row.id
 }
 
 function handleEdit(row: any) {
@@ -562,6 +579,10 @@ onMounted(() => {
                     />
                   </n-space>
                 </n-checkbox-group>
+                <div class="flex items-center gap-2">
+                  <n-switch v-model:value="applicationCampaignOnly" />
+                  <n-text>В заявочной кампании</n-text>
+                </div>
               </div>
             </div>
             <div v-else />
@@ -574,6 +595,7 @@ onMounted(() => {
           <n-data-table
             :columns="config.columns(handleEdit, handleDelete)"
             :data="filteredItems"
+            :row-key="dictionaryRowKey"
             :loading="loading"
             :bordered="false"
             size="small"

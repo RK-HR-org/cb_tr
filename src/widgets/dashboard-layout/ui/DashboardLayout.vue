@@ -12,7 +12,8 @@ import {
   CalendarOutline as CalendarIcon,
   SunnyOutline as SunIcon,
   MoonOutline as MoonIcon,
-  SettingsOutline as AutoIcon
+  SettingsOutline as AutoIcon,
+  CalculatorOutline as CalculatorIcon,
 } from '@vicons/ionicons5'
 
 const authStore = useAuthStore()
@@ -112,6 +113,13 @@ async function handleLogout() {
             key: 'calendar',
             icon: () => h(NIcon, null, { default: () => h(CalendarIcon) }),
             onClick: () => router.push('/calendar')
+          },
+          {
+            label: 'Нормирование',
+            key: 'work-norms',
+            show: isAdmin,
+            icon: () => h(NIcon, null, { default: () => h(CalculatorIcon) }),
+            onClick: () => router.push('/admin/work-norms')
           },
           {
             label: 'Мои задачи',

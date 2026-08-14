@@ -32,6 +32,10 @@ import {
   type ActivityScheduleSeed,
 } from '../entities/activity'
 import { getTrainerOptions } from '../entities/trainer'
+import {
+  listProductionCalendarDays,
+  type ProductionCalendarDay,
+} from '../entities/production-calendar'
 import { ActivityEditorModal } from '../features/activity-editor'
 import {
   toExclusiveEndDate,
@@ -50,6 +54,7 @@ const editingId = ref<number | null>(null)
 const editorSchedule = ref<ActivityScheduleSeed | null>(null)
 const records = ref<ActivityListItem[]>([])
 const trainers = ref<SelectOption[]>([])
+const productionCalendarDays = ref<ProductionCalendarDay[]>([])
 const selectedTrainerId = ref<number | null>(null)
 const mediaQuery = window.matchMedia('(max-width: 700px)')
 const compact = ref(mediaQuery.matches)
@@ -66,7 +71,7 @@ function projectColor(id: number | null) {
   return id ? palette[Math.abs(id) % palette.length] : themeVars.value.primaryColor
 }
 
-const events = computed<EventInput[]>(() =>
+const activityEvents = computed<EventInput[]>(() =>
   records.value.flatMap(record => {
     const timed = Boolean(record.start_datetime && record.end_datetime)
     const start = timed ? record.start_datetime : record.start_date
@@ -92,6 +97,31 @@ const events = computed<EventInput[]>(() =>
     }]
   }),
 )
+
+const productionCalendarEvents = computed<EventInput[]>(() =>
+  productionCalendarDays.value.flatMap((day) => {
+    const end = toExclusiveEndDate(day.event_date)
+    if (!end) return []
+    return [{
+      id: `production-calendar-${day.id}`,
+      title: day.name,
+      start: day.event_date,
+      end,
+      allDay: true,
+      display: 'background',
+      backgroundColor: day.day_type === 'holiday'
+        ? 'rgba(239, 68, 68, 0.20)'
+        : 'rgba(234, 179, 8, 0.24)',
+      classNames: [day.day_type === 'holiday' ? 'production-holiday' : 'production-working-saturday'],
+      extendedProps: { productionCalendarDay: day },
+    }]
+  }),
+)
+
+const events = computed<EventInput[]>(() => [
+  ...productionCalendarEvents.value,
+  ...activityEvents.value,
+])
 
 function openCreate(
   start = new Date(),
@@ -119,7 +149,8 @@ function handleSelect(info: DateSelectArg) {
 }
 
 function handleEventClick(info: EventClickArg) {
-  const item = info.event.extendedProps.record as ActivityListItem
+  const item = info.event.extendedProps.record as ActivityListItem | undefined
+  if (!item) return
   editingId.value = item.id
   editorSchedule.value = null
   showEditor.value = true
@@ -239,7 +270,11 @@ async function handleMedia(event: MediaQueryListEvent) {
 onMounted(async () => {
   mediaQuery.addEventListener('change', handleMedia)
   try {
-    await loadTrainers()
+    const [, productionDays] = await Promise.all([
+      loadTrainers(),
+      listProductionCalendarDays(),
+    ])
+    productionCalendarDays.value = productionDays
     await loadEvents()
   } catch (error: unknown) {
     message.error(error instanceof Error ? error.message : 'Не удалось загрузить данные календаря')
@@ -261,6 +296,11 @@ onBeforeUnmount(() => mediaQuery.removeEventListener('change', handleMedia))
             placeholder="Выберите тренера" class="trainer-select" @update:value="changeTrainer" />
           <NButton type="primary" :disabled="!targetTrainerId" @click="openCreate()">Добавить активность</NButton>
         </div>
+      </div>
+
+      <div class="calendar-legend" aria-label="Обозначения производственного календаря">
+        <span><i class="legend-swatch legend-swatch--holiday" />Праздничный / нерабочий день</span>
+        <span><i class="legend-swatch legend-swatch--working" />Рабочая суббота</span>
       </div>
 
       <NCard class="calendar-card" :content-style="{ height: '100%', padding: compact ? '8px' : '16px' }">
@@ -285,6 +325,11 @@ onBeforeUnmount(() => mediaQuery.removeEventListener('change', handleMedia))
 .calendar-page { display:flex; min-height:0; flex:1; flex-direction:column; gap:16px }
 .calendar-heading,.calendar-actions { display:flex; align-items:center; gap:12px }
 .calendar-heading { justify-content:space-between }
+.calendar-legend { display:flex; flex-wrap:wrap; gap:16px; margin-top:-6px; font-size:13px; color:v-bind('themeVars.textColor3') }
+.calendar-legend span { display:inline-flex; align-items:center; gap:6px }
+.legend-swatch { width:16px; height:12px; border-radius:3px }
+.legend-swatch--holiday { background:rgba(239,68,68,.28); border:1px solid rgba(220,38,38,.45) }
+.legend-swatch--working { background:rgba(234,179,8,.32); border:1px solid rgba(202,138,4,.5) }
 .trainer-select { width:280px }
 .calendar-card {
   height:calc(100vh - 210px);
@@ -316,6 +361,8 @@ onBeforeUnmount(() => mediaQuery.removeEventListener('change', handleMedia))
 :deep(.fc .fc-col-header-cell.fc-day-sun) {
   background-color:color-mix(in srgb, v-bind('themeVars.textColor3') 12%, transparent);
 }
+:deep(.fc .fc-bg-event.production-holiday) { background:rgba(239,68,68,.22); opacity:1 }
+:deep(.fc .fc-bg-event.production-working-saturday) { background:rgba(234,179,8,.28); opacity:1 }
 @media (max-width:700px) {
   .calendar-heading,.calendar-actions { align-items:stretch; flex-direction:column }
   .trainer-select { width:100% }
