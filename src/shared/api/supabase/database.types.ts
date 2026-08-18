@@ -201,6 +201,52 @@ export type WorkNormSettingInsert = {
   updated_at?: string
 }
 
+export type AdminCalendarEventRow = {
+  id: number
+  series_id: string
+  copied_from_event_id: number | null
+  trainer_event_group_id: string | null
+  project_main_id: number | null
+  activity_type_id: number | null
+  delivery_format_id: number | null
+  recurrence_type_id: number | null
+  title: string
+  required_trainer_count: number
+  start_datetime: string | null
+  end_datetime: string | null
+  start_date: string | null
+  end_date: string | null
+  recurrence_until: string | null
+  occurrence_index: number
+  description: string | null
+  comments: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type AdminCalendarEventInsert = {
+  id?: number
+  series_id?: string
+  copied_from_event_id?: number | null
+  trainer_event_group_id?: string | null
+  project_main_id?: number | null
+  activity_type_id?: number | null
+  delivery_format_id?: number | null
+  recurrence_type_id?: number | null
+  title: string
+  required_trainer_count?: number
+  start_datetime?: string | null
+  end_datetime?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  recurrence_until?: string | null
+  occurrence_index?: number
+  description?: string | null
+  comments?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
 export type TrainerProjectRow = {
   id: number
   trainer_id: number
@@ -302,6 +348,11 @@ export type Database = {
         ProductionCalendarDayInsert
       >
       work_norm_settings: TableDefinition<WorkNormSettingRow, WorkNormSettingInsert>
+      admin_calendar_events: TableDefinition<AdminCalendarEventRow, AdminCalendarEventInsert>
+      admin_calendar_event_trainers: TableDefinition<
+        { event_id: number; trainer_id: number; trainer_project_id: number; assigned_at: string },
+        { event_id: number; trainer_id: number; trainer_project_id: number; assigned_at?: string }
+      >
     }
     Views: {
       trainer_effective_project_access: {
@@ -332,6 +383,18 @@ export type Database = {
           p_payload: Json
         }
         Returns: undefined
+      }
+      sync_admin_calendar_event_trainers: {
+        Args: { p_event_ids: number[]; p_trainer_ids?: number[] }
+        Returns: undefined
+      }
+      delete_admin_calendar_events: {
+        Args: { p_event_ids: number[] }
+        Returns: number
+      }
+      delete_admin_calendar_event_future_series: {
+        Args: { p_event_id: number; p_now?: string }
+        Returns: number
       }
     }
     Enums: Record<string, never>

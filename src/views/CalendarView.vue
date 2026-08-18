@@ -16,7 +16,6 @@ import type {
 import {
   NButton,
   NCard,
-  NEmpty,
   NSelect,
   NSpin,
   NText,
@@ -38,6 +37,13 @@ import {
 } from '../entities/production-calendar'
 import { ActivityEditorModal } from '../features/activity-editor'
 import {
+  listAdminCalendarEvents,
+  updateAdminCalendarEventSchedule,
+  type AdminCalendarEventListItem,
+  type AdminCalendarEventScheduleSeed,
+} from '../entities/admin-calendar-event'
+import { AdminCalendarEventEditorModal } from '../features/admin-calendar-event-editor'
+import {
   toExclusiveEndDate,
   toInclusiveEndDate,
   toLocalDateString,
@@ -49,10 +55,14 @@ const message = useMessage()
 const themeVars = useThemeVars()
 const calendarRef = ref<InstanceType<typeof FullCalendar> | null>(null)
 const loading = ref(false)
-const showEditor = ref(false)
-const editingId = ref<number | null>(null)
-const editorSchedule = ref<ActivityScheduleSeed | null>(null)
+const showActivityEditor = ref(false)
+const editingActivityId = ref<number | null>(null)
+const activityEditorSchedule = ref<ActivityScheduleSeed | null>(null)
+const showAdminEventEditor = ref(false)
+const editingAdminEventId = ref<number | null>(null)
+const adminEventEditorSchedule = ref<AdminCalendarEventScheduleSeed | null>(null)
 const records = ref<ActivityListItem[]>([])
+const adminEvents = ref<AdminCalendarEventListItem[]>([])
 const trainers = ref<SelectOption[]>([])
 const productionCalendarDays = ref<ProductionCalendarDay[]>([])
 const selectedTrainerId = ref<number | null>(null)
@@ -83,7 +93,7 @@ const activityEvents = computed<EventInput[]>(() =>
     if (!start || !end) return []
 
     return [{
-      id: String(record.id),
+      id: 'activity-' + record.id,
       title: record.task_desc?.trim()
         || record.project_names?.name
         || (record.source_schedule_key ? `График ${record.source_schedule_key}` : 'Событие'),
@@ -94,6 +104,29 @@ const activityEvents = computed<EventInput[]>(() =>
       borderColor: projectColor(record.project_main_id),
       editable: isAdmin.value || !record.event_group_id,
       extendedProps: { record },
+    }]
+  }),
+)
+
+const administratorEvents = computed<EventInput[]>(() =>
+  adminEvents.value.flatMap(record => {
+    const timed = Boolean(record.start_datetime && record.end_datetime)
+    const start = timed ? record.start_datetime : record.start_date
+    const end = timed
+      ? record.end_datetime
+      : record.end_date ? toExclusiveEndDate(record.end_date) : null
+    if (!start || !end) return []
+    const color = projectColor(record.project_main_id)
+    return [{
+      id: 'admin-event-' + record.id,
+      title: record.title + ' · тренеров: ' + record.required_trainer_count,
+      start,
+      end,
+      allDay: !timed,
+      backgroundColor: color,
+      borderColor: color,
+      editable: isAdmin.value,
+      extendedProps: { adminEvent: record },
     }]
   }),
 )
@@ -120,6 +153,7 @@ const productionCalendarEvents = computed<EventInput[]>(() =>
 
 const events = computed<EventInput[]>(() => [
   ...productionCalendarEvents.value,
+  ...(isAdmin.value ? administratorEvents.value : []),
   ...activityEvents.value,
 ])
 
@@ -128,19 +162,26 @@ function openCreate(
   end = new Date(Date.now() + 3600000),
   allDay = false,
 ) {
-  editingId.value = null
-  editorSchedule.value = allDay
+  const schedule = allDay
     ? {
-        schedule_mode: 'date',
+        schedule_mode: 'date' as const,
         start_date: start.getTime(),
         end_date: new Date(end.getTime() - 86400000).getTime(),
       }
     : {
-        schedule_mode: 'datetime',
+        schedule_mode: 'datetime' as const,
         start_datetime: start.getTime(),
         end_datetime: end.getTime(),
       }
-  showEditor.value = true
+  if (isAdmin.value) {
+    editingAdminEventId.value = null
+    adminEventEditorSchedule.value = schedule
+    showAdminEventEditor.value = true
+  } else {
+    editingActivityId.value = null
+    activityEditorSchedule.value = schedule
+    showActivityEditor.value = true
+  }
 }
 
 function handleSelect(info: DateSelectArg) {
@@ -149,23 +190,29 @@ function handleSelect(info: DateSelectArg) {
 }
 
 function handleEventClick(info: EventClickArg) {
+  const adminEvent = info.event.extendedProps.adminEvent as AdminCalendarEventListItem | undefined
+  if (adminEvent && isAdmin.value) {
+    editingAdminEventId.value = adminEvent.id
+    adminEventEditorSchedule.value = null
+    showAdminEventEditor.value = true
+    return
+  }
   const item = info.event.extendedProps.record as ActivityListItem | undefined
   if (!item) return
-  editingId.value = item.id
-  editorSchedule.value = null
-  showEditor.value = true
+  editingActivityId.value = item.id
+  activityEditorSchedule.value = null
+  showActivityEditor.value = true
 }
 
 async function persistDates(
-  id: string,
+  adminEvent: AdminCalendarEventListItem | undefined,
+  item: ActivityListItem | undefined,
   start: Date | null,
   end: Date | null,
   allDay: boolean,
   revert: () => void,
 ) {
-  if (!start || !end || !targetTrainerId.value) return revert()
-  const item = records.value.find(record => record.id === Number(id))
-  if (!item) return revert()
+  if (!start || !end || (!adminEvent && !item)) return revert()
 
   const patch = allDay
     ? {
@@ -182,9 +229,17 @@ async function persistDates(
       }
 
   try {
-    await updateActivitySchedule(item, targetTrainerId.value, isAdmin.value, patch)
-    Object.assign(item, patch)
-    message.success('Период активности обновлён')
+    if (adminEvent) {
+      await updateAdminCalendarEventSchedule(adminEvent.id, patch)
+      Object.assign(adminEvent, patch)
+      message.success('Период мероприятия обновлён')
+    } else if (item && targetTrainerId.value) {
+      await updateActivitySchedule(item, targetTrainerId.value, isAdmin.value, patch)
+      Object.assign(item, patch)
+      message.success('Период активности обновлён')
+    } else {
+      revert()
+    }
   } catch (error: unknown) {
     revert()
     message.error(error instanceof Error ? error.message : 'Не удалось изменить время')
@@ -192,17 +247,25 @@ async function persistDates(
 }
 
 function handleDrop(info: EventDropArg) {
-  void persistDates(info.event.id, info.event.start, info.event.end, info.event.allDay, info.revert)
+  void persistDates(
+    info.event.extendedProps.adminEvent as AdminCalendarEventListItem | undefined,
+    info.event.extendedProps.record as ActivityListItem | undefined,
+    info.event.start, info.event.end, info.event.allDay, info.revert,
+  )
 }
 
 function handleResize(info: EventResizeDoneArg) {
-  void persistDates(info.event.id, info.event.start, info.event.end, info.event.allDay, info.revert)
+  void persistDates(
+    info.event.extendedProps.adminEvent as AdminCalendarEventListItem | undefined,
+    info.event.extendedProps.record as ActivityListItem | undefined,
+    info.event.start, info.event.end, info.event.allDay, info.revert,
+  )
 }
 
 const calendarOptions = computed<CalendarOptions>(() => ({
   plugins: [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
   locale: ruLocale,
-  initialView: compact.value ? 'timeGridDay' : 'timeGridWeek',
+  initialView: compact.value ? 'timeGridDay' : 'dayGridMonth',
   headerToolbar: compact.value
     ? { left: 'prev,next', center: 'title', right: 'today' }
     : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' },
@@ -233,16 +296,18 @@ const calendarOptions = computed<CalendarOptions>(() => ({
 }))
 
 async function loadEvents() {
-  if (!targetTrainerId.value) {
-    records.value = []
-    return
-  }
   loading.value = true
   try {
-    records.value = await listCalendarActivities(targetTrainerId.value)
+    const [loadedAdminEvents, loadedActivities] = await Promise.all([
+      isAdmin.value ? listAdminCalendarEvents() : Promise.resolve([]),
+      targetTrainerId.value ? listCalendarActivities(targetTrainerId.value) : Promise.resolve([]),
+    ])
+    adminEvents.value = loadedAdminEvents
+    records.value = loadedActivities
     await nextTick()
     calendarRef.value?.getApi().updateSize()
   } catch (error: unknown) {
+    adminEvents.value = []
     records.value = []
     message.error(error instanceof Error ? error.message : 'Не удалось загрузить календарь')
   } finally {
@@ -258,7 +323,6 @@ async function changeTrainer(value: number | null) {
 async function loadTrainers() {
   if (!isAdmin.value) return
   trainers.value = await getTrainerOptions()
-  selectedTrainerId.value = trainers.value[0]?.value ?? null
 }
 
 async function handleMedia(event: MediaQueryListEvent) {
@@ -288,13 +352,20 @@ onBeforeUnmount(() => mediaQuery.removeEventListener('change', handleMedia))
     <div class="calendar-page">
       <div class="calendar-heading">
         <div>
-          <n-h2 class="!m-0">{{ isAdmin ? 'Календарь тренеров' : 'Мой календарь' }}</n-h2>
-          <NText depth="3">Выделите время для новой активности или нажмите на существующую запись</NText>
+          <n-h2 class="!m-0">{{ isAdmin ? 'Календарь администратора' : 'Мой календарь' }}</n-h2>
+          <NText depth="3">
+            {{ isAdmin
+              ? 'Планируйте мероприятия и требуемое количество тренеров'
+              : 'Выделите время для новой активности или нажмите на существующую запись' }}
+          </NText>
         </div>
         <div class="calendar-actions">
           <NSelect v-if="isAdmin" :value="selectedTrainerId" :options="trainers" filterable
-            placeholder="Выберите тренера" class="trainer-select" @update:value="changeTrainer" />
-          <NButton type="primary" :disabled="!targetTrainerId" @click="openCreate()">Добавить активность</NButton>
+            clearable placeholder="Дополнительно показать тренера" class="trainer-select"
+            @update:value="changeTrainer" />
+          <NButton type="primary" :disabled="!isAdmin && !targetTrainerId" @click="openCreate()">
+            {{ isAdmin ? 'Добавить мероприятие' : 'Добавить активность' }}
+          </NButton>
         </div>
       </div>
 
@@ -305,17 +376,23 @@ onBeforeUnmount(() => mediaQuery.removeEventListener('change', handleMedia))
 
       <NCard class="calendar-card" :content-style="{ height: '100%', padding: compact ? '8px' : '16px' }">
         <div v-if="loading" class="calendar-state"><NSpin size="large" description="Загрузка календаря…" /></div>
-        <div v-else-if="isAdmin && !targetTrainerId" class="calendar-state"><NEmpty description="Нет доступных тренеров" /></div>
         <FullCalendar v-else ref="calendarRef" class="trainer-calendar" :options="calendarOptions" />
       </NCard>
     </div>
 
     <ActivityEditorModal
-      v-model:show="showEditor"
-      :record-id="editingId"
+      v-model:show="showActivityEditor"
+      :record-id="editingActivityId"
       :trainer-id="targetTrainerId"
       :can-manage-participants="isAdmin"
-      :initial-schedule="editorSchedule"
+      :initial-schedule="activityEditorSchedule"
+      @saved="loadEvents"
+    />
+    <AdminCalendarEventEditorModal
+      v-if="isAdmin"
+      v-model:show="showAdminEventEditor"
+      :record-id="editingAdminEventId"
+      :initial-schedule="adminEventEditorSchedule"
       @saved="loadEvents"
     />
   </DashboardLayout>
