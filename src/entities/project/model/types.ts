@@ -16,6 +16,8 @@ export type Project = {
   duration_hours: number | null
   participant_count: number | null
   is_in_application_campaign: boolean
+  module_gap_value: number | null
+  module_gap_unit: 'days' | 'weeks' | 'months' | 'quarters' | null
   central_office_format_code: string | null
   main_department_format_code: string | null
   annual_budget_item_id: number | null
@@ -45,6 +47,8 @@ export type ProjectPayload = {
   duration_hours: number | null
   participant_count: number | null
   is_in_application_campaign: boolean
+  module_gap_value: number | null
+  module_gap_unit: 'days' | 'weeks' | 'months' | 'quarters' | null
   central_office_format_code: string | null
   main_department_format_code: string | null
   annual_budget_item_id: number | null

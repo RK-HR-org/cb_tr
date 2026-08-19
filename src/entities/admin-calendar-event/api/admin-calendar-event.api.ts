@@ -11,7 +11,7 @@ import type {
 } from '../model/types'
 
 const EVENT_FIELDS = `
-  id, series_id, copied_from_event_id, trainer_event_group_id, project_main_id, activity_type_id,
+  id, series_id, copied_from_event_id, trainer_event_group_id, program_schedule_id, program_schedule_module_id, project_main_id, activity_type_id,
   delivery_format_id, recurrence_type_id, title, required_trainer_count,
   start_datetime, end_datetime, start_date, end_date, recurrence_until,
   occurrence_index, description, comments, created_at, updated_at

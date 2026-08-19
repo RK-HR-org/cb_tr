@@ -361,7 +361,7 @@ async function loadGanttData() {
     ])
     productionCalendarDays.value = productionDays
     const projectItems = allProjects.filter(item => resolveProjectRange(item))
-    loadedAssignmentCount.value = projectItems.length
+    loadedAssignmentCount.value = projectItems.filter((item: any) => item.source_type !== 'admin_calendar_event').length
     loadedEventCount.value = new Set(
       projectItems.map((item: any) => item.event_group_id || `row-${item.id}`),
     ).size
@@ -381,6 +381,10 @@ async function loadGanttData() {
 
 function editTask(event: GanttTaskEvent) {
   const id = Number(event.task.id)
+  if (id < 0) {
+    message.info('Назначьте тренера или откройте мероприятие в административном календаре для редактирования')
+    return
+  }
   if (!Number.isInteger(id)) {
     message.warning('Не удалось определить запись активности')
     return

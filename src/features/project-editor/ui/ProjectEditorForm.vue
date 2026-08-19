@@ -34,6 +34,8 @@ import {
   type ProjectType,
 } from '../../../entities/project'
 import { listTrainers, type Trainer } from '../../../entities/trainer'
+import { listProductionCalendarDays, type ProductionCalendarDay } from '../../../entities/production-calendar'
+import { ProgramSchedulerModal } from '../../program-scheduler'
 
 const props = defineProps<{
   projectId: number | null
@@ -63,6 +65,9 @@ const materials = ref<ProjectMaterial[]>([])
 const materialsError = ref<string | null>(null)
 const materialsLoaded = ref(false)
 const savedProjectTypeId = ref<number | null>(null)
+const currentProject = ref<Project | null>(null)
+const productionCalendarDays = ref<ProductionCalendarDay[]>([])
+const schedulerOpen = ref(false)
 
 const MODULAR_PROGRAM_TYPE_NAME = 'Модульная программа'
 const normalizedTypeName = (name: string) => name.trim().toLocaleLowerCase('ru-RU')
@@ -91,6 +96,8 @@ const form = ref({
   duration_hours: null as number | null,
   participant_count: null as number | null,
   is_in_application_campaign: false,
+  module_gap_value: 30 as number | null,
+  module_gap_unit: 'days' as 'days' | 'weeks' | 'months' | 'quarters' | null,
   central_office_format_code: null as string | null,
   main_department_format_code: null as string | null,
   annual_budget_item_id: null as number | null,
@@ -207,6 +214,7 @@ async function load() {
       listAnnualBudgetItems(),
       listMaterialTypes(),
       listMaterialStatuses(),
+      listProductionCalendarDays(),
       props.projectId ? getProject(props.projectId) : Promise.resolve(null),
     ])
 
@@ -220,6 +228,7 @@ async function load() {
       annualBudgetRows,
       materialTypeRows,
       materialStatusRows,
+      productionCalendarRows,
       projectResult,
     ] = results
 
@@ -260,11 +269,13 @@ async function load() {
           { code: 'ready', name: 'Готов' },
           { code: 'needs_update', name: 'Требует актуализации' },
         ]
+    productionCalendarDays.value = productionCalendarRows.status === 'fulfilled' ? productionCalendarRows.value : []
 
     if (projectResult.status === 'rejected') throw projectResult.reason
     const project = projectResult.value
 
     if (project) {
+      currentProject.value = project
       form.value = {
         name: project.name,
         audit_index: project.audit_index ?? '',
@@ -282,6 +293,8 @@ async function load() {
         duration_hours: project.duration_hours,
         participant_count: project.participant_count,
         is_in_application_campaign: project.is_in_application_campaign,
+        module_gap_value: project.module_gap_value,
+        module_gap_unit: project.module_gap_unit,
         central_office_format_code: project.central_office_format_code,
         main_department_format_code: project.main_department_format_code,
         annual_budget_item_id: project.annual_budget_item_id,
@@ -359,12 +372,15 @@ async function submitProject() {
       duration_hours: form.value.duration_hours,
       participant_count: form.value.participant_count,
       is_in_application_campaign: form.value.is_in_application_campaign,
+      module_gap_value: isModularProgramType(form.value.project_type_id) ? form.value.module_gap_value : null,
+      module_gap_unit: isModularProgramType(form.value.project_type_id) ? form.value.module_gap_unit : null,
       central_office_format_code: form.value.central_office_format_code,
       main_department_format_code: form.value.main_department_format_code,
       annual_budget_item_id: form.value.annual_budget_item_id,
       direction_ids: form.value.direction_ids,
     }, props.projectId)
     savedProjectTypeId.value = project.project_type_id
+    currentProject.value = project
     message.success('Карточка проекта сохранена')
     emit('saved', project.id)
   } catch (error) {
@@ -589,6 +605,23 @@ onMounted(load)
               </NFormItem>
             </NGridItem>
           </NGrid>
+          <NGrid v-if="isModularProgramType(form.project_type_id) && !isModule" :cols="2" :x-gap="16">
+            <NGridItem>
+              <NFormItem label="Промежуток между модулями">
+                <NInputNumber v-model:value="form.module_gap_value" :min="0" :precision="0" clearable placeholder="Например, 30" class="w-full" />
+              </NFormItem>
+            </NGridItem>
+            <NGridItem>
+              <NFormItem label="Единица промежутка">
+                <NSelect v-model:value="form.module_gap_unit" :options="[
+                  { label: 'Дни', value: 'days' },
+                  { label: 'Недели', value: 'weeks' },
+                  { label: 'Месяцы', value: 'months' },
+                  { label: 'Кварталы', value: 'quarters' },
+                ]" clearable />
+              </NFormItem>
+            </NGridItem>
+          </NGrid>
           <div class="form-footer">
             <NButton type="primary" :loading="loading" @click="submitProject">
               Сохранить
@@ -605,6 +638,9 @@ onMounted(load)
           {{ materialsError }}
         </NAlert>
         <div class="section-toolbar">
+          <NButton v-if="projectId && canAddModules" secondary @click="schedulerOpen = true">
+            Запланировать программу
+          </NButton>
           <NButton type="primary" :disabled="!projectId || Boolean(materialsError)" @click="openMaterial()">
             Добавить материал
           </NButton>
@@ -690,6 +726,13 @@ onMounted(load)
         </div>
       </NForm>
     </NModal>
+    <ProgramSchedulerModal
+      v-if="currentProject && canAddModules"
+      v-model:show="schedulerOpen"
+      :program="currentProject"
+      :modules="projects.filter(item => item.parent_project_id === projectId)"
+      :overrides="productionCalendarDays"
+    />
   </NSpin>
 </template>
 

@@ -5,6 +5,8 @@ export type AdminCalendarEventRecord = {
   series_id: string
   copied_from_event_id: number | null
   trainer_event_group_id: string | null
+  program_schedule_id: number | null
+  program_schedule_module_id: number | null
   project_main_id: number | null
   activity_type_id: number | null
   delivery_format_id: number | null
