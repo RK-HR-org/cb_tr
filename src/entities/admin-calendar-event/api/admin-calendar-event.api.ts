@@ -19,7 +19,7 @@ const EVENT_FIELDS = `
 
 const EVENT_LIST_FIELDS = `
   ${EVENT_FIELDS},
-  project_names (name), activity_types (name), delivery_formats (name), recurrence_types (name)
+  project_names (name, color), activity_types (name), delivery_formats (name), recurrence_types (name)
 `
 
 export async function listAdminCalendarEvents(): Promise<AdminCalendarEventListItem[]> {

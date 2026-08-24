@@ -10,6 +10,7 @@ import type {
   CalendarOptions,
   DateSelectArg,
   EventClickArg,
+  EventContentArg,
   EventDropArg,
   EventInput,
 } from '@fullcalendar/core'
@@ -30,6 +31,7 @@ import {
   type ActivityListItem,
   type ActivityScheduleSeed,
 } from '../entities/activity'
+import { resolveProjectColor } from '../entities/project'
 import { getTrainerOptions } from '../entities/trainer'
 import {
   listProductionCalendarDays,
@@ -39,7 +41,9 @@ import { ActivityEditorModal } from '../features/activity-editor'
 import {
   DEFAULT_ADMIN_EVENTS_EXPORT_YEAR,
   downloadAdminEventsXlsx,
+  isOnlineDeliveryFormatName,
   listAdminCalendarEvents,
+  ONLINE_EVENT_ICON_URL,
   updateAdminCalendarEventSchedule,
   type AdminCalendarEventListItem,
   type AdminCalendarEventScheduleSeed,
@@ -49,6 +53,7 @@ import {
   toExclusiveEndDate,
   toInclusiveEndDate,
   toLocalDateString,
+  parseLocalDate,
 } from '../shared/lib/date'
 import type { SelectOption } from '../shared/types'
 
@@ -80,8 +85,96 @@ const targetTrainerId = computed<number | null>(() => {
   return Number.isFinite(id) && id > 0 ? id : null
 })
 
-function projectColor(id: number | null) {
+function formatDaysCount(count: number): string {
+  const value = Math.max(1, count)
+  const mod10 = value % 10
+  const mod100 = value % 100
+  if (mod10 === 1 && mod100 !== 11) return `${value} день`
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${value} дня`
+  return `${value} дней`
+}
+
+function adminEventDurationLabel(record: AdminCalendarEventListItem): string | null {
+  if (record.start_datetime && record.end_datetime) {
+    const start = new Date(record.start_datetime)
+    const end = new Date(record.end_datetime)
+    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+    const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+    const days = Math.round((endDay.getTime() - startDay.getTime()) / 86400000) + 1
+    return formatDaysCount(days)
+  }
+
+  if (record.start_date && record.end_date) {
+    const start = parseLocalDate(record.start_date)
+    const end = parseLocalDate(record.end_date)
+    if (!start || !end) return null
+    const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1
+    return formatDaysCount(days)
+  }
+
+  return null
+}
+
+function renderCalendarEventContent(arg: EventContentArg) {
+  const adminEvent = arg.event.extendedProps.adminEvent as AdminCalendarEventListItem | undefined
+  if (!adminEvent || !isOnlineDeliveryFormatName(adminEvent.delivery_formats?.name)) {
+    return true
+  }
+
+  const container = document.createElement('div')
+  container.className = 'fc-event-main-frame'
+
+  if (arg.timeText) {
+    const timeEl = document.createElement('div')
+    timeEl.className = 'fc-event-time'
+    timeEl.textContent = arg.timeText
+    container.appendChild(timeEl)
+  }
+
+  const titleContainer = document.createElement('div')
+  titleContainer.className = 'fc-event-title-container'
+
+  const titleEl = document.createElement('div')
+  titleEl.className = 'fc-event-title fc-sticky'
+
+  const wrapper = document.createElement('span')
+  wrapper.className = 'calendar-event-title-with-icon'
+
+  const icon = document.createElement('img')
+  icon.src = ONLINE_EVENT_ICON_URL
+  icon.alt = ''
+  icon.className = 'calendar-event-online-icon'
+  icon.setAttribute('aria-hidden', 'true')
+
+  const text = document.createElement('span')
+  text.textContent = arg.event.title || ''
+
+  wrapper.appendChild(icon)
+  wrapper.appendChild(text)
+  titleEl.appendChild(wrapper)
+  titleContainer.appendChild(titleEl)
+  container.appendChild(titleContainer)
+
+  return { domNodes: [container] }
+}
+
+function adminEventTitle(record: AdminCalendarEventListItem): string {
+  const duration = adminEventDurationLabel(record)
+  const parts = [record.title]
+  if (duration) parts.push(duration)
+  parts.push(`тренеров: ${record.required_trainer_count}`)
+  return parts.join(' · ')
+}
+
+function projectColorFallback(id: number | null) {
   return id ? palette[Math.abs(id) % palette.length] : themeVars.value.primaryColor
+}
+
+function eventColor(
+  projectMainId: number | null,
+  project?: { color?: string | null } | null,
+) {
+  return resolveProjectColor(projectMainId, project?.color, projectColorFallback)
 }
 
 const activityEvents = computed<EventInput[]>(() =>
@@ -103,8 +196,8 @@ const activityEvents = computed<EventInput[]>(() =>
       start,
       end,
       allDay: !timed,
-      backgroundColor: projectColor(record.project_main_id),
-      borderColor: projectColor(record.project_main_id),
+      backgroundColor: eventColor(record.project_main_id, record.project_names),
+      borderColor: eventColor(record.project_main_id, record.project_names),
       editable: isAdmin.value || !record.event_group_id,
       extendedProps: { record },
     }]
@@ -119,10 +212,10 @@ const administratorEvents = computed<EventInput[]>(() =>
       ? record.end_datetime
       : record.end_date ? toExclusiveEndDate(record.end_date) : null
     if (!start || !end) return []
-    const color = projectColor(record.project_main_id)
+    const color = eventColor(record.project_main_id, record.project_names)
     return [{
       id: 'admin-event-' + record.id,
-      title: record.title + ' · тренеров: ' + record.required_trainer_count,
+      title: adminEventTitle(record),
       start,
       end,
       allDay: !timed,
@@ -295,6 +388,7 @@ const calendarOptions = computed<CalendarOptions>(() => ({
   eventClick: handleEventClick,
   eventDrop: handleDrop,
   eventResize: handleResize,
+  eventContent: renderCalendarEventContent,
   eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
 }))
 
@@ -471,6 +565,19 @@ onBeforeUnmount(() => mediaQuery.removeEventListener('change', handleMedia))
 }
 :deep(.fc .fc-bg-event.production-holiday) { background:rgba(239,68,68,.22); opacity:1 }
 :deep(.fc .fc-bg-event.production-working-saturday) { background:rgba(234,179,8,.28); opacity:1 }
+:deep(.calendar-event-title-with-icon) {
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  min-width:0;
+}
+:deep(.calendar-event-online-icon) {
+  width:14px;
+  height:14px;
+  flex:none;
+  object-fit:contain;
+  filter: brightness(0) invert(1);
+}
 @media (max-width:700px) {
   .calendar-heading,.calendar-actions { align-items:stretch; flex-direction:column }
   .trainer-select { width:100% }

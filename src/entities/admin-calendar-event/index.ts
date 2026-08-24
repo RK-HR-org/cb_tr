@@ -1,4 +1,5 @@
 export * from './api/admin-calendar-event.api'
 export * from './model/form'
 export { downloadAdminEventsXlsx, DEFAULT_ADMIN_EVENTS_EXPORT_YEAR } from './lib/export-events-xlsx'
+export { isOnlineDeliveryFormatName, ONLINE_EVENT_ICON_URL } from './lib/online-delivery-format'
 export type * from './model/types'
