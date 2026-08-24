@@ -61,6 +61,9 @@
 Legacy-названия `project_names` и `trainer_projects` пока сохранены, чтобы не
 ломать существующие данные и внешние импорты.
 
-RLS нельзя включать до перехода на Supabase Auth: текущий вход по числовому ID
-не создаёт серверной пользовательской сессии. Ролевой guard в роутере защищает
-навигацию интерфейса, но не заменяет серверные политики доступа.
+RLS включён: доступ к данным определяется JWT Supabase Auth (`app_metadata.role`
+и `app_metadata.trainer_id`). Ролевой guard в роутере дополнительно защищает
+навигацию интерфейса.
+
+Настройка auth: [`docs/supabase-auth-setup.md`](supabase-auth-setup.md).
+Слой auth: `src/entities/auth`.

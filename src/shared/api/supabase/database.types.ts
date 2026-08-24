@@ -66,6 +66,8 @@ export type TrainerRow = {
   full_name: string
   city_id: number | null
   division_id: number | null
+  login: string | null
+  auth_user_id: string | null
 }
 
 export type TrainerInsert = {
@@ -73,6 +75,8 @@ export type TrainerInsert = {
   full_name: string
   city_id?: number | null
   division_id?: number | null
+  login?: string | null
+  auth_user_id?: string | null
 }
 
 export type ProjectRow = {

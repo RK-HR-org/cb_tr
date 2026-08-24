@@ -1,47 +1,30 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { getTrainer } from '../entities/trainer'
+import {
+  getProfileFromSession,
+  getSession,
+  onAuthStateChange,
+  signIn as apiSignIn,
+  signOut as apiSignOut,
+} from '../entities/auth'
 import type { AppProfile } from '../shared/types'
 
 export const useAuthStore = defineStore('auth', () => {
   const profile = ref<AppProfile | null>(null)
   const initialized = ref(false)
   let initializationPromise: Promise<void> | null = null
-  
-  async function login(token: string) {
-    if (token === 'adminpass') {
-      profile.value = {
-        id: 'admin_id',
-        role: 'admin',
-        full_name: 'Главный Администратор'
-      }
-      localStorage.setItem('auth_token', 'adminpass')
-      return { success: true }
-    }
+  let unsubscribe: (() => void) | null = null
 
-    // Validate that token is a valid integer ID
-    const trainerId = parseInt(token)
-    if (isNaN(trainerId) || trainerId <= 0) {
-      return { success: false, message: 'Неверный формат ID тренера (ожидается число)' }
-    }
+  function setProfile(next: AppProfile | null) {
+    profile.value = next
+  }
 
-    // Try finding a trainer by ID
-    try {
-      const data = await getTrainer(trainerId)
-        
-      if (data) {
-        profile.value = {
-          id: data.id,
-          role: 'trainer',
-          full_name: data.full_name
-        }
-        localStorage.setItem('auth_token', data.id.toString())
-        return { success: true }
-      }
-      return { success: false, message: 'Тренер с таким ID не найден' }
-    } catch {
-      return { success: false, message: 'Неверный формат ID или ошибка сети' }
+  async function login(login: string, password: string) {
+    const result = await apiSignIn(login, password)
+    if (result.success) {
+      setProfile(result.profile)
     }
+    return result
   }
 
   async function initializeAuth() {
@@ -49,11 +32,15 @@ export const useAuthStore = defineStore('auth', () => {
     if (initializationPromise) return initializationPromise
 
     initializationPromise = (async () => {
-      const token = localStorage.getItem('auth_token')
-      if (token) {
-        const result = await login(token)
-        if (!result.success) localStorage.removeItem('auth_token')
+      if (!unsubscribe) {
+        const subscription = onAuthStateChange((nextProfile) => {
+          setProfile(nextProfile)
+        })
+        unsubscribe = () => subscription.unsubscribe()
       }
+
+      const session = await getSession()
+      setProfile(getProfileFromSession(session))
       initialized.value = true
     })()
 
@@ -61,9 +48,9 @@ export const useAuthStore = defineStore('auth', () => {
     initializationPromise = null
   }
 
-  function signOut() {
-    localStorage.removeItem('auth_token')
-    profile.value = null
+  async function signOut() {
+    await apiSignOut()
+    setProfile(null)
   }
 
   return { profile, initialized, login, initializeAuth, signOut }

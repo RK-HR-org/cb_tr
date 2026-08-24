@@ -18,6 +18,12 @@ import {
 } from '../../../entities/certification'
 import { listProjects, type Project } from '../../../entities/project'
 import {
+  createTrainerAuth,
+  isValidLogin,
+  isValidPassword,
+  resetTrainerPassword,
+} from '../../../entities/auth'
+import {
   getTrainer,
   listCities,
   listDivisions,
@@ -47,7 +53,13 @@ const form = ref({
   full_name: '',
   city_id: null as number | null,
   division_id: null as number | null,
+  login: '',
 })
+
+const initialPassword = ref('')
+const hasAuthAccount = ref(false)
+const resetPasswordModalOpen = ref(false)
+const resetPasswordValue = ref('')
 
 const certificationForm = ref<TrainerCertificationPayload>({
   trainer_id: props.trainerId ?? 0,
@@ -143,7 +155,9 @@ async function load() {
         full_name: trainer.full_name,
         city_id: trainer.city_id,
         division_id: trainer.division_id,
+        login: trainer.login || '',
       }
+      hasAuthAccount.value = Boolean(trainer.auth_user_id)
       certifications.value = await listTrainerCertifications(trainer.id)
     } else if (props.trainerId) {
       throw new Error('Тренер не найден')
@@ -160,17 +174,65 @@ async function submitTrainer() {
     message.warning('Укажите ФИО тренера')
     return
   }
+
+  const normalizedLogin = form.value.login.trim().toLowerCase()
+  const isNewTrainer = !props.trainerId
+  const needsAuthAccount = isNewTrainer || !hasAuthAccount.value
+
+  if (needsAuthAccount) {
+    if (!isValidLogin(normalizedLogin)) {
+      message.warning('Логин: 3–32 символа, латиница, цифры и _')
+      return
+    }
+    if (!isValidPassword(initialPassword.value)) {
+      message.warning('Укажите начальный пароль не короче 8 символов')
+      return
+    }
+  }
+
   loading.value = true
   try {
     const trainer = await saveTrainer({
       full_name: form.value.full_name.trim(),
       city_id: form.value.city_id,
       division_id: form.value.division_id,
+      login: normalizedLogin || null,
     }, props.trainerId)
-    message.success('Карточка тренера сохранена')
+
+    if (needsAuthAccount) {
+      await createTrainerAuth(trainer.id, normalizedLogin, initialPassword.value)
+      hasAuthAccount.value = true
+      initialPassword.value = ''
+      message.success(isNewTrainer
+        ? 'Тренер создан, учётная запись активирована'
+        : 'Учётная запись тренера создана')
+    } else {
+      message.success('Карточка тренера сохранена')
+    }
+
     emit('saved', trainer.id)
   } catch (error) {
     message.error(errorMessage(error, 'Не удалось сохранить тренера'))
+  } finally {
+    loading.value = false
+  }
+}
+
+async function submitPasswordReset() {
+  if (!props.trainerId) return
+  if (!isValidPassword(resetPasswordValue.value)) {
+    message.warning('Пароль должен содержать не менее 8 символов')
+    return
+  }
+
+  loading.value = true
+  try {
+    await resetTrainerPassword(props.trainerId, resetPasswordValue.value)
+    resetPasswordValue.value = ''
+    resetPasswordModalOpen.value = false
+    message.success('Пароль тренера обновлён')
+  } catch (error) {
+    message.error(errorMessage(error, 'Не удалось сбросить пароль'))
   } finally {
     loading.value = false
   }
@@ -244,6 +306,26 @@ onMounted(load)
           <NFormItem label="ФИО" required>
             <NInput v-model:value="form.full_name" placeholder="Фамилия Имя Отчество" />
           </NFormItem>
+          <NFormItem label="Логин" :required="!trainerId || !hasAuthAccount">
+            <NInput
+              v-model:value="form.login"
+              :readonly="Boolean(trainerId && hasAuthAccount)"
+              placeholder="ivanov"
+            />
+          </NFormItem>
+          <NFormItem v-if="!trainerId || !hasAuthAccount" label="Начальный пароль" required>
+            <NInput
+              v-model:value="initialPassword"
+              type="password"
+              show-password-on="click"
+              placeholder="Не менее 8 символов"
+            />
+          </NFormItem>
+          <div v-if="trainerId && hasAuthAccount" class="password-actions">
+            <NButton @click="resetPasswordModalOpen = true">
+              Сбросить пароль
+            </NButton>
+          </div>
           <NGrid :cols="2" :x-gap="16">
             <NGridItem>
               <NFormItem label="Подразделение">
@@ -352,16 +434,45 @@ onMounted(load)
         </div>
       </NForm>
     </NModal>
+
+    <NModal
+      v-model:show="resetPasswordModalOpen"
+      preset="card"
+      title="Сброс пароля тренера"
+      class="editor-modal"
+    >
+      <NForm label-placement="top">
+        <NFormItem label="Новый пароль" required>
+          <NInput
+            v-model:value="resetPasswordValue"
+            type="password"
+            show-password-on="click"
+            placeholder="Не менее 8 символов"
+          />
+        </NFormItem>
+        <div class="form-footer">
+          <NButton @click="resetPasswordModalOpen = false">Отмена</NButton>
+          <NButton type="primary" :loading="loading" @click="submitPasswordReset">
+            Сохранить
+          </NButton>
+        </div>
+      </NForm>
+    </NModal>
   </NSpin>
 </template>
 
 <style scoped>
 .section-toolbar,
 .form-footer,
-.editor-actions {
+.editor-actions,
+.password-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.password-actions {
+  margin-bottom: 16px;
 }
 
 .section-toolbar {
