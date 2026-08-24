@@ -2,6 +2,7 @@ export type ScheduleMode = 'date' | 'datetime'
 
 export type NamedRelation = {
   name?: string
+  color?: string | null
 } | null
 
 export type ActivityRecord = {

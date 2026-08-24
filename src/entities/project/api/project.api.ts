@@ -14,7 +14,7 @@ const PROJECT_FIELDS = `
   duration_days, duration_hours, participant_count, is_in_application_campaign,
   module_gap_value, module_gap_unit,
   central_office_format_code,
-  main_department_format_code, annual_budget_item_id,
+  main_department_format_code, annual_budget_item_id, color,
   project_type:project_types!project_names_project_type_id_fkey (id, name),
   parent_project:project_names!parent_project_id (id, name),
   lead_methodologist:trainers!project_names_lead_methodologist_id_fkey (id, full_name),

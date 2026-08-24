@@ -102,6 +102,7 @@ export type ProjectRow = {
   central_office_format_code: string | null
   main_department_format_code: string | null
   annual_budget_item_id: number | null
+  color: string | null
 }
 
 export type ProjectInsert = {
@@ -127,6 +128,7 @@ export type ProjectInsert = {
   central_office_format_code?: string | null
   main_department_format_code?: string | null
   annual_budget_item_id?: number | null
+  color?: string | null
 }
 
 export type TrainerCertificationRow = {

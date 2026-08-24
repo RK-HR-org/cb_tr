@@ -21,6 +21,7 @@ export type Project = {
   central_office_format_code: string | null
   main_department_format_code: string | null
   annual_budget_item_id: number | null
+  color: string | null
   project_type?: { id: number; name: string } | null
   parent_project?: { id: number; name: string } | null
   lead_methodologist?: { id: number; full_name: string } | null
@@ -52,6 +53,7 @@ export type ProjectPayload = {
   central_office_format_code: string | null
   main_department_format_code: string | null
   annual_budget_item_id: number | null
+  color: string | null
   direction_ids: number[]
 }
 

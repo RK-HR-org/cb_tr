@@ -19,7 +19,7 @@ const ACTIVITY_FIELDS = `
 const ACTIVITY_LIST_FIELDS = `
   ${ACTIVITY_FIELDS},
   project_types (name),
-  project_names (name),
+  project_names (name, color),
   roles (name),
   activity_types (name),
   delivery_formats (name),
@@ -157,7 +157,7 @@ export async function listGanttActivities(): Promise<GanttActivityItem[]> {
         role_id, activity_type_id, delivery_format_id, recurrence_type_id,
         start_datetime, end_datetime, start_date, end_date,
         source_type, source_schedule_key, source_event_key, is_duplicate, task_desc, comments,
-        project_names (name), trainers (full_name), activity_types (name),
+        project_names (name, color), trainers (full_name), activity_types (name),
         delivery_formats (name), roles (name), project_types (name), recurrence_types (name)
       `)
       .order('id', { ascending: true })
@@ -172,7 +172,7 @@ export async function listGanttActivities(): Promise<GanttActivityItem[]> {
   const [eventsResult, assignmentsResult] = await Promise.all([
     supabase
       .from('admin_calendar_events')
-      .select('id, project_main_id, title, start_date, end_date, start_datetime, end_datetime, comments, program_schedule_id, project_names(name)')
+      .select('id, project_main_id, title, start_date, end_date, start_datetime, end_datetime, comments, program_schedule_id, project_names(name, color)')
       .not('program_schedule_id', 'is', null),
     supabase.from('admin_calendar_event_trainers').select('event_id'),
   ])

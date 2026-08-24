@@ -19,6 +19,7 @@ import {
   type ProjectMaterialPayload,
 } from '../../../entities/project-material'
 import {
+  DEFAULT_PROJECT_COLOR,
   getProject,
   listAnnualBudgetItems,
   listDirections,
@@ -102,6 +103,7 @@ const form = ref({
   main_department_format_code: null as string | null,
   annual_budget_item_id: null as number | null,
   direction_ids: [] as number[],
+  color: DEFAULT_PROJECT_COLOR,
 })
 
 const materialForm = ref<ProjectMaterialPayload>({
@@ -299,6 +301,7 @@ async function load() {
         main_department_format_code: project.main_department_format_code,
         annual_budget_item_id: project.annual_budget_item_id,
         direction_ids: (project.project_direction_links || []).map(link => link.direction_id),
+        color: project.color ?? DEFAULT_PROJECT_COLOR,
       }
       savedProjectTypeId.value = project.project_type_id
     } else if (props.projectId) {
@@ -378,6 +381,7 @@ async function submitProject() {
       main_department_format_code: form.value.main_department_format_code,
       annual_budget_item_id: form.value.annual_budget_item_id,
       direction_ids: form.value.direction_ids,
+      color: form.value.color,
     }, props.projectId)
     savedProjectTypeId.value = project.project_type_id
     currentProject.value = project
@@ -479,6 +483,13 @@ onMounted(load)
               <template #checked>Да</template>
               <template #unchecked>Нет</template>
             </NSwitch>
+          </NFormItem>
+
+          <NFormItem label="Цвет в календаре">
+            <div class="project-color-field">
+              <NColorPicker v-model:value="form.color" :modes="['hex']" :show-alpha="false" />
+              <NText depth="3">Используется для мероприятий и активностей этого проекта</NText>
+            </div>
           </NFormItem>
 
           <NGrid v-if="isModule" :cols="2" :x-gap="16">
@@ -755,6 +766,12 @@ onMounted(load)
   justify-content: space-between;
   gap: 12px;
   width: 100%;
+}
+
+.project-color-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .editor-modal {
