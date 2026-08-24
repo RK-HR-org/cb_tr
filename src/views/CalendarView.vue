@@ -37,6 +37,8 @@ import {
 } from '../entities/production-calendar'
 import { ActivityEditorModal } from '../features/activity-editor'
 import {
+  DEFAULT_ADMIN_EVENTS_EXPORT_YEAR,
+  downloadAdminEventsXlsx,
   listAdminCalendarEvents,
   updateAdminCalendarEventSchedule,
   type AdminCalendarEventListItem,
@@ -55,6 +57,7 @@ const message = useMessage()
 const themeVars = useThemeVars()
 const calendarRef = ref<InstanceType<typeof FullCalendar> | null>(null)
 const loading = ref(false)
+const exportingEvents = ref(false)
 const showActivityEditor = ref(false)
 const editingActivityId = ref<number | null>(null)
 const activityEditorSchedule = ref<ActivityScheduleSeed | null>(null)
@@ -295,6 +298,23 @@ const calendarOptions = computed<CalendarOptions>(() => ({
   eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
 }))
 
+async function exportAdminEvents() {
+  exportingEvents.value = true
+  try {
+    const events = await listAdminCalendarEvents()
+    const count = downloadAdminEventsXlsx(events, DEFAULT_ADMIN_EVENTS_EXPORT_YEAR)
+    if (!count) {
+      message.warning(`Нет мероприятий на ${DEFAULT_ADMIN_EVENTS_EXPORT_YEAR} год`)
+      return
+    }
+    message.success(`Выгружено мероприятий: ${count}`)
+  } catch (error: unknown) {
+    message.error(error instanceof Error ? error.message : 'Не удалось выгрузить мероприятия')
+  } finally {
+    exportingEvents.value = false
+  }
+}
+
 async function loadEvents() {
   const currentCalendarDate = calendarRef.value?.getApi().getDate()
   loading.value = true
@@ -367,6 +387,13 @@ onBeforeUnmount(() => mediaQuery.removeEventListener('change', handleMedia))
           <NSelect v-if="isAdmin" :value="selectedTrainerId" :options="trainers" filterable
             clearable placeholder="Дополнительно показать тренера" class="trainer-select"
             @update:value="changeTrainer" />
+          <NButton
+            v-if="isAdmin"
+            :loading="exportingEvents"
+            @click="exportAdminEvents"
+          >
+            Выгрузить мероприятия
+          </NButton>
           <NButton type="primary" :disabled="!isAdmin && !targetTrainerId" @click="openCreate()">
             {{ isAdmin ? 'Добавить мероприятие' : 'Добавить активность' }}
           </NButton>
