@@ -296,6 +296,7 @@ const calendarOptions = computed<CalendarOptions>(() => ({
 }))
 
 async function loadEvents() {
+  const currentCalendarDate = calendarRef.value?.getApi().getDate()
   loading.value = true
   try {
     const [loadedAdminEvents, loadedActivities] = await Promise.all([
@@ -304,15 +305,18 @@ async function loadEvents() {
     ])
     adminEvents.value = loadedAdminEvents
     records.value = loadedActivities
+    loading.value = false
     await nextTick()
-    calendarRef.value?.getApi().updateSize()
+    const calendarApi = calendarRef.value?.getApi()
+    if (calendarApi) {
+      calendarApi.updateSize()
+      if (currentCalendarDate) calendarApi.gotoDate(currentCalendarDate)
+    }
   } catch (error: unknown) {
     adminEvents.value = []
     records.value = []
     message.error(error instanceof Error ? error.message : 'Не удалось загрузить календарь')
-  } finally {
-    loading.value = false
-  }
+  } finally { loading.value = false }
 }
 
 async function changeTrainer(value: number | null) {
