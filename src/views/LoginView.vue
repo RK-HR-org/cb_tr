@@ -8,26 +8,27 @@ const authStore = useAuthStore()
 const router = useRouter()
 const message = useMessage()
 
-const token = ref('')
+const login = ref('')
+const password = ref('')
 const loading = ref(false)
 
 async function handleLogin() {
-  if (!token.value) {
-    message.warning('Пожалуйста, введите ваш ID или токен доступа')
+  if (!login.value.trim() || !password.value) {
+    message.warning('Введите логин и пароль')
     return
   }
-  
+
   loading.value = true
-  const result = await authStore.login(token.value)
-  
+  const result = await authStore.login(login.value, password.value)
+
   if (!result.success) {
     message.error(result.message || 'Ошибка входа')
     loading.value = false
     return
   }
-  
+
   message.success('Успешный вход')
-  
+
   if (authStore.profile?.role === 'admin') {
     router.push('/admin/dashboard')
   } else {
@@ -45,14 +46,26 @@ async function handleLogin() {
       </div>
 
       <n-form @submit.prevent="handleLogin" size="large">
-        <n-form-item label="ID Тренера или пароль Администратора">
-          <n-input 
-            v-model:value="token" 
-            placeholder="Пример: 3" 
+        <n-form-item label="Логин">
+          <n-input
+            v-model:value="login"
+            placeholder="Например: ivanov"
+            autocomplete="username"
             @keyup.enter="handleLogin"
           />
         </n-form-item>
-        
+
+        <n-form-item label="Пароль">
+          <n-input
+            v-model:value="password"
+            type="password"
+            show-password-on="click"
+            placeholder="Введите пароль"
+            autocomplete="current-password"
+            @keyup.enter="handleLogin"
+          />
+        </n-form-item>
+
         <div class="mt-6">
           <n-button
             type="primary"
@@ -65,10 +78,6 @@ async function handleLogin() {
           </n-button>
         </div>
       </n-form>
-      
-      <div class="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
-        <p>Для входа используйте свой числовой номер тренера (ID).</p>
-      </div>
     </div>
   </div>
 </template>

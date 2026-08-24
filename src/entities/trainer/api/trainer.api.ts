@@ -7,7 +7,7 @@ import type {
 } from '../model/types'
 
 const TRAINER_FIELDS = `
-  id, full_name, city_id, division_id,
+  id, full_name, city_id, division_id, login, auth_user_id,
   cities (name),
   divisions (name)
 `
@@ -16,7 +16,7 @@ function trainerSaveError(error: unknown) {
   const value = error as { code?: string; message?: string }
 
   if (value?.code === '23505') {
-    return new Error('Тренер с таким ФИО уже существует.')
+    return new Error('Тренер с таким ФИО или логином уже существует.')
   }
   if (value?.code === '23503') {
     return new Error('Выбранные город или подразделение больше не существуют.')
