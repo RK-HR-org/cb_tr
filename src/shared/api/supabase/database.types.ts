@@ -93,6 +93,8 @@ export type ProjectRow = {
   duration_hours: number | null
   participant_count: number | null
   is_in_application_campaign: boolean
+  module_gap_value: number | null
+  module_gap_unit: 'days' | 'weeks' | 'months' | 'quarters' | null
   central_office_format_code: string | null
   main_department_format_code: string | null
   annual_budget_item_id: number | null
@@ -116,6 +118,8 @@ export type ProjectInsert = {
   duration_hours?: number | null
   participant_count?: number | null
   is_in_application_campaign?: boolean
+  module_gap_value?: number | null
+  module_gap_unit?: 'days' | 'weeks' | 'months' | 'quarters' | null
   central_office_format_code?: string | null
   main_department_format_code?: string | null
   annual_budget_item_id?: number | null
@@ -206,6 +210,8 @@ export type AdminCalendarEventRow = {
   series_id: string
   copied_from_event_id: number | null
   trainer_event_group_id: string | null
+  program_schedule_id: number | null
+  program_schedule_module_id: number | null
   project_main_id: number | null
   activity_type_id: number | null
   delivery_format_id: number | null
@@ -229,6 +235,8 @@ export type AdminCalendarEventInsert = {
   series_id?: string
   copied_from_event_id?: number | null
   trainer_event_group_id?: string | null
+  program_schedule_id?: number | null
+  program_schedule_module_id?: number | null
   project_main_id?: number | null
   activity_type_id?: number | null
   delivery_format_id?: number | null
@@ -348,6 +356,54 @@ export type Database = {
         ProductionCalendarDayInsert
       >
       work_norm_settings: TableDefinition<WorkNormSettingRow, WorkNormSettingInsert>
+      program_schedules: TableDefinition<
+        {
+          id: number
+          program_project_id: number
+          start_date: string
+          gap_value: number
+          gap_unit: 'days' | 'weeks' | 'months' | 'quarters'
+          calendar_mode: 'working' | 'calendar'
+          source_reference: string | null
+          created_at: string
+          updated_at: string
+        },
+        {
+          id?: number
+          program_project_id: number
+          start_date: string
+          gap_value: number
+          gap_unit: 'days' | 'weeks' | 'months' | 'quarters'
+          calendar_mode?: 'working' | 'calendar'
+          source_reference?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      >
+      program_schedule_modules: TableDefinition<
+        {
+          id: number
+          schedule_id: number
+          module_project_id: number
+          module_position: number | null
+          duration_days: number
+          planned_start_date: string
+          planned_end_date: string
+          admin_calendar_event_id: number | null
+          created_at: string
+        },
+        {
+          id?: number
+          schedule_id: number
+          module_project_id: number
+          module_position?: number | null
+          duration_days: number
+          planned_start_date: string
+          planned_end_date: string
+          admin_calendar_event_id?: number | null
+          created_at?: string
+        }
+      >
       admin_calendar_events: TableDefinition<AdminCalendarEventRow, AdminCalendarEventInsert>
       admin_calendar_event_trainers: TableDefinition<
         { event_id: number; trainer_id: number; trainer_project_id: number; assigned_at: string },
@@ -394,6 +450,17 @@ export type Database = {
       }
       delete_admin_calendar_event_future_series: {
         Args: { p_event_id: number; p_now?: string }
+        Returns: number
+      }
+      save_program_schedule: {
+        Args: {
+          p_program_project_id: number
+          p_start_date: string
+          p_gap_value: number
+          p_gap_unit: string
+          p_calendar_mode: string
+          p_modules: Json
+        }
         Returns: number
       }
     }

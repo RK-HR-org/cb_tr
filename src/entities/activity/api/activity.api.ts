@@ -168,6 +168,43 @@ export async function listGanttActivities(): Promise<GanttActivityItem[]> {
     if (page.length < pageSize) break
     from += pageSize
   }
+
+  const [eventsResult, assignmentsResult] = await Promise.all([
+    supabase
+      .from('admin_calendar_events')
+      .select('id, project_main_id, title, start_date, end_date, start_datetime, end_datetime, comments, program_schedule_id, project_names(name)')
+      .not('program_schedule_id', 'is', null),
+    supabase.from('admin_calendar_event_trainers').select('event_id'),
+  ])
+  if (eventsResult.error) throw eventsResult.error
+  if (assignmentsResult.error) throw assignmentsResult.error
+  const assignedEventIds = new Set((assignmentsResult.data || []).map(row => row.event_id))
+  for (const event of eventsResult.data || []) {
+    if (assignedEventIds.has(event.id)) continue
+    items.push({
+      id: -event.id,
+      trainer_id: 0,
+      event_group_id: null,
+      project_type_id: null,
+      project_main_id: event.project_main_id,
+      project_sub: null,
+      role_id: null,
+      activity_type_id: null,
+      delivery_format_id: null,
+      recurrence_type_id: null,
+      start_datetime: event.start_datetime,
+      end_datetime: event.end_datetime,
+      start_date: event.start_date,
+      end_date: event.end_date,
+      source_type: 'admin_calendar_event',
+      source_event_key: String(event.id),
+      is_duplicate: false,
+      task_desc: event.title,
+      comments: event.comments,
+      project_names: event.project_names,
+      trainers: { full_name: 'Не назначено' },
+    } as unknown as GanttActivityItem)
+  }
   return items
 }
 
