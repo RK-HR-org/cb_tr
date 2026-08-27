@@ -198,7 +198,7 @@ const activityEvents = computed<EventInput[]>(() =>
       allDay: !timed,
       backgroundColor: eventColor(record.project_main_id, record.project_names),
       borderColor: eventColor(record.project_main_id, record.project_names),
-      editable: isAdmin.value || !record.event_group_id,
+      editable: isAdmin.value || record.trainer_id === targetTrainerId.value,
       extendedProps: { record },
     }]
   }),
@@ -295,6 +295,10 @@ function handleEventClick(info: EventClickArg) {
   }
   const item = info.event.extendedProps.record as ActivityListItem | undefined
   if (!item) return
+  if (!isAdmin.value && item.trainer_id !== targetTrainerId.value) {
+    message.info('Вы можете редактировать только свои мероприятия')
+    return
+  }
   editingActivityId.value = item.id
   activityEditorSchedule.value = null
   showActivityEditor.value = true

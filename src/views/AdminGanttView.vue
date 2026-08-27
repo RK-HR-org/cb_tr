@@ -9,8 +9,10 @@ import {
   GanttNonWorking,
   type GanttRowData,
   type GanttTaskEvent,
+  type GanttUnit,
   type GanttZoomLevel,
 } from '@dizzy_yakov/vue-gantt'
+import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import '@dizzy_yakov/vue-gantt/styles.css'
 import { listGanttActivities } from '../entities/activity'
@@ -20,10 +22,18 @@ import {
   type ProductionCalendarDay,
 } from '../entities/production-calendar'
 import { ProductionCalendarBands } from '../features/production-calendar-gantt'
+import { useAuthStore } from '../stores/auth'
 
+const authStore = useAuthStore()
 const router = useRouter()
 const message = useMessage()
 const themeVars = useThemeVars()
+const isAdmin = computed(() => authStore.profile?.role === 'admin')
+const currentTrainerId = computed(() => {
+  if (isAdmin.value) return null
+  const id = Number(authStore.profile?.id)
+  return Number.isInteger(id) && id > 0 ? id : null
+})
 const loading = ref(true)
 const rows = ref<GanttRowData[]>([])
 const productionCalendarDays = ref<ProductionCalendarDay[]>([])
@@ -42,12 +52,22 @@ const initialDate = new Date()
 const timelineStart = ref(startOfNavigationRange(initialDate))
 const timelineEnd = ref(endOfNavigationRange(initialDate))
 const zoomLevels = ref<GanttZoomLevel[]>([
-  { id: 'day', label: 'День', tiers: ['day'], columnWidth: 80 },
-  { id: 'week', label: 'Неделя', tiers: ['week', 'day'], columnWidth: 70 },
-  { id: 'month', label: 'Месяц', tiers: ['month', 'week'], columnWidth: 80 },
-  { id: 'quarter', label: 'Квартал', tiers: ['quarter', 'month'], columnWidth: 100 },
-  { id: 'year', label: 'Год', tiers: ['year', 'quarter'], columnWidth: 120 },
+  { id: 'day', label: 'День', tiers: ['month', 'day'], columnWidth: 80 },
+  { id: 'week', label: 'Неделя', tiers: ['month', 'day'], columnWidth: 70 },
+  { id: 'month', label: 'Месяц', tiers: ['year', 'month'], columnWidth: 80 },
+  { id: 'quarter', label: 'Квартал', tiers: ['year', 'month'], columnWidth: 100 },
+  { id: 'year', label: 'Год', tiers: ['year', 'month'], columnWidth: 120 },
 ])
+
+function ganttLabelFormat(date: Date, tier: GanttUnit) {
+  if (tier === 'year') return format(date, 'yyyy', { locale: ru })
+  if (tier === 'month') {
+    const withYear = zoom.value === 'day' || zoom.value === 'week'
+    return format(date, withYear ? 'LLLL yyyy' : 'LLLL', { locale: ru })
+  }
+  if (tier === 'day') return format(date, 'd', { locale: ru })
+  return format(date, 'd MMM yyyy', { locale: ru })
+}
 
 const ganttTheme = computed<Record<string, string>>(() => ({
   '--gantt-font': themeVars.value.fontFamily,
@@ -313,6 +333,7 @@ function buildRows(items: any[], trainerRecords: any[]): GanttRowData[] {
       end: range.end,
       progress: item.progress ?? 0,
       meta: {
+        trainerId: Number(trainerId),
         trainer: trainerName,
         project: projectName,
         subproject: subName,
@@ -379,6 +400,17 @@ async function loadGanttData() {
   }
 }
 
+function taskTrainerId(task: GanttTaskEvent['task']) {
+  const trainerId = task.meta?.trainerId
+  return typeof trainerId === 'number' ? trainerId : Number(trainerId)
+}
+
+function canEditTask(task: GanttTaskEvent['task']) {
+  if (isAdmin.value) return true
+  const trainerId = taskTrainerId(task)
+  return currentTrainerId.value != null && trainerId === currentTrainerId.value
+}
+
 function editTask(event: GanttTaskEvent) {
   const id = Number(event.task.id)
   if (id < 0) {
@@ -387,6 +419,10 @@ function editTask(event: GanttTaskEvent) {
   }
   if (!Number.isInteger(id)) {
     message.warning('Не удалось определить запись активности')
+    return
+  }
+  if (!canEditTask(event.task)) {
+    message.info('Вы можете редактировать только свои задачи')
     return
   }
   editingActivityId.value = id
@@ -403,9 +439,11 @@ onMounted(() => {
     <div class="mb-6 flex justify-between items-center">
       <div>
         <n-h2 class="!m-0">Гант диаграмма</n-h2>
-        <n-text depth="3">Задачи тренеров во времени</n-text>
+        <n-text depth="3">
+          {{ isAdmin ? 'Задачи тренеров во времени' : 'Просмотр всех задач. Редактировать можно только свои.' }}
+        </n-text>
       </div>
-      <n-button type="primary" @click="router.push('/admin/table')">Вернуться к таблице</n-button>
+      <n-button v-if="isAdmin" type="primary" @click="router.push('/admin/table')">Вернуться к таблице</n-button>
     </div>
 
     <n-card
@@ -468,6 +506,7 @@ onMounted(() => {
             :end-date="timelineEnd"
             :zoom="zoom"
             :zoom-levels="zoomLevels"
+            :label-format="ganttLabelFormat"
             @task-click="editTask"
             aria-label="Задачи тренеров по времени"
             height="100%"
@@ -531,6 +570,8 @@ onMounted(() => {
     <ActivityEditorModal
       v-model:show="showActivityEditor"
       :record-id="editingActivityId"
+      :trainer-id="currentTrainerId"
+      :can-manage-participants="isAdmin"
       @saved="loadGanttData"
     />
   </DashboardLayout>

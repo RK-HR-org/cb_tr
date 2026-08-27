@@ -90,8 +90,24 @@ watch(
   { immediate: true },
 )
 
-const groupReadOnly = () =>
-  Boolean(currentRecord.value?.event_group_id && !props.canManageParticipants)
+const groupReadOnly = () => {
+  if (!currentRecord.value?.event_group_id || props.canManageParticipants) {
+    return false
+  }
+  const ownerId = currentRecord.value.trainer_id
+  if (props.trainerId != null && ownerId === props.trainerId) {
+    return false
+  }
+  return true
+}
+
+const groupEventNote = () =>
+  Boolean(
+    currentRecord.value?.event_group_id
+    && !props.canManageParticipants
+    && props.trainerId != null
+    && currentRecord.value.trainer_id === props.trainerId,
+  )
 
 async function handleSave() {
   if (groupReadOnly()) return
@@ -169,6 +185,7 @@ async function handleDelete() {
         :compact="compact"
         :disabled="groupReadOnly()"
         :group-read-only-note="groupReadOnly()"
+        :group-event-note="groupEventNote()"
       />
       <div class="modal-actions">
         <NPopconfirm v-if="recordId && !groupReadOnly()" @positive-click="handleDelete">

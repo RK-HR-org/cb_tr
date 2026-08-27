@@ -27,6 +27,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: "/account",
+      name: "account",
+      component: () => import("../pages/account"),
+      meta: { requiresAuth: true },
+    },
+    {
       path: "/admin/dashboard",
       name: "admin-dashboard",
       component: () => import("../pages/admin-dashboard"),
@@ -90,10 +96,16 @@ const router = createRouter({
       meta: { requiresAuth: true, role: "admin" },
     },
     {
+      path: "/gantt",
+      name: "gantt",
+      component: () => import("../pages/admin-gantt"),
+      meta: { requiresAuth: true },
+    },
+    {
       path: "/admin/gantt",
       name: "admin-gantt",
       component: () => import("../pages/admin-gantt"),
-      meta: { requiresAuth: true, role: "admin" },
+      meta: { requiresAuth: true },
     },
     {
       path: "/admin/work-norms",

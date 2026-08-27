@@ -13,8 +13,19 @@ type ManageTrainerAuthAction =
   | { action: 'reset_password'; trainer_id: number; password: string }
   | { action: 'disable'; trainer_id: number }
 
+type ManageAccountAction =
+  | { action: 'change_password'; current_password: string; new_password: string }
+  | { action: 'change_login'; new_login: string; current_password: string }
+
 async function invokeManageTrainerAuth(body: ManageTrainerAuthAction) {
   const { data, error } = await supabase.functions.invoke('manage-trainer-auth', { body })
+  if (error) throw error
+  if (data?.error) throw new Error(String(data.error))
+  return data
+}
+
+async function invokeManageAccount(body: ManageAccountAction) {
+  const { data, error } = await supabase.functions.invoke('manage-account', { body })
   if (error) throw error
   if (data?.error) throw new Error(String(data.error))
   return data
@@ -104,4 +115,62 @@ export async function resetTrainerPassword(
 
 export async function disableTrainerAuth(trainerId: number): Promise<void> {
   await invokeManageTrainerAuth({ action: 'disable', trainer_id: trainerId })
+}
+
+export async function getAccountLogin(): Promise<string | null> {
+  const session = await getSession()
+  const user = session?.user
+  if (!user) return null
+
+  const metadataLogin = user.user_metadata?.login
+  if (typeof metadataLogin === 'string' && metadataLogin.trim()) {
+    return metadataLogin.trim().toLowerCase()
+  }
+
+  const email = user.email
+  if (email?.endsWith('@cb-tr.local')) {
+    return email.slice(0, -'@cb-tr.local'.length).toLowerCase()
+  }
+
+  return null
+}
+
+export async function changeOwnPassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  if (!currentPassword || !newPassword) {
+    throw new Error('Укажите текущий и новый пароль')
+  }
+  if (!isValidPassword(newPassword)) {
+    throw new Error('Новый пароль должен содержать не менее 8 символов')
+  }
+  if (currentPassword === newPassword) {
+    throw new Error('Новый пароль должен отличаться от текущего')
+  }
+
+  await invokeManageAccount({
+    action: 'change_password',
+    current_password: currentPassword,
+    new_password: newPassword,
+  })
+}
+
+export async function changeOwnLogin(
+  newLogin: string,
+  currentPassword: string,
+): Promise<void> {
+  const normalizedLogin = newLogin.trim().toLowerCase()
+  if (!normalizedLogin || !currentPassword) {
+    throw new Error('Укажите новый логин и текущий пароль')
+  }
+  if (!isValidLogin(normalizedLogin)) {
+    throw new Error('Логин: 3–32 символа, латиница, цифры и _')
+  }
+
+  await invokeManageAccount({
+    action: 'change_login',
+    new_login: normalizedLogin,
+    current_password: currentPassword,
+  })
 }

@@ -279,7 +279,13 @@ export async function saveActivity(command: SaveActivityCommand): Promise<void> 
   const current = await getActivity(command.recordId)
   if (current.event_group_id) {
     if (!command.canManageParticipants) {
-      throw new Error('Групповое мероприятие может редактировать только администратор')
+      const updateResult = await supabase
+        .from('trainer_projects')
+        .update(command.payload)
+        .eq('id', command.recordId)
+        .eq('trainer_id', command.trainerId)
+      if (updateResult.error) throw updateResult.error
+      return
     }
     const updateResult = await supabase
       .from('trainer_projects')
@@ -321,7 +327,13 @@ export async function deleteActivity(
 ): Promise<void> {
   const current = await getActivity(recordId)
   if (current.event_group_id && !canManageParticipants) {
-    throw new Error('Групповое мероприятие может удалить только администратор')
+    const { error } = await supabase
+      .from('trainer_projects')
+      .delete()
+      .eq('id', recordId)
+      .eq('trainer_id', trainerId)
+    if (error) throw error
+    return
   }
 
   let query = supabase.from('trainer_projects').delete()
@@ -361,7 +373,13 @@ export async function updateActivitySchedule(
   patch: Pick<ActivityPayload, 'start_date' | 'end_date' | 'start_datetime' | 'end_datetime'>,
 ): Promise<void> {
   if (record.event_group_id && !canManageGroup) {
-    throw new Error('Время группового мероприятия изменяет администратор')
+    const { error } = await supabase
+      .from('trainer_projects')
+      .update(patch)
+      .eq('id', record.id)
+      .eq('trainer_id', trainerId)
+    if (error) throw error
+    return
   }
   let query = supabase.from('trainer_projects').update(patch)
   query = record.event_group_id
