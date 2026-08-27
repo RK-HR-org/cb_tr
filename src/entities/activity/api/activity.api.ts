@@ -157,7 +157,7 @@ export async function listGanttActivities(): Promise<GanttActivityItem[]> {
         role_id, activity_type_id, delivery_format_id, recurrence_type_id,
         start_datetime, end_datetime, start_date, end_date,
         source_type, source_schedule_key, source_event_key, is_duplicate, task_desc, comments,
-        project_names (name, color), trainers (full_name), activity_types (name),
+        project_names (name), trainers (full_name), activity_types (name),
         delivery_formats (name), roles (name), project_types (name), recurrence_types (name)
       `)
       .order('id', { ascending: true })

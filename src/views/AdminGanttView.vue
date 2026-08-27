@@ -9,8 +9,10 @@ import {
   GanttNonWorking,
   type GanttRowData,
   type GanttTaskEvent,
+  type GanttUnit,
   type GanttZoomLevel,
 } from '@dizzy_yakov/vue-gantt'
+import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import '@dizzy_yakov/vue-gantt/styles.css'
 import { listGanttActivities } from '../entities/activity'
@@ -42,12 +44,22 @@ const initialDate = new Date()
 const timelineStart = ref(startOfNavigationRange(initialDate))
 const timelineEnd = ref(endOfNavigationRange(initialDate))
 const zoomLevels = ref<GanttZoomLevel[]>([
-  { id: 'day', label: 'День', tiers: ['day'], columnWidth: 80 },
-  { id: 'week', label: 'Неделя', tiers: ['week', 'day'], columnWidth: 70 },
-  { id: 'month', label: 'Месяц', tiers: ['month', 'week'], columnWidth: 80 },
-  { id: 'quarter', label: 'Квартал', tiers: ['quarter', 'month'], columnWidth: 100 },
-  { id: 'year', label: 'Год', tiers: ['year', 'quarter'], columnWidth: 120 },
+  { id: 'day', label: 'День', tiers: ['month', 'day'], columnWidth: 80 },
+  { id: 'week', label: 'Неделя', tiers: ['month', 'day'], columnWidth: 70 },
+  { id: 'month', label: 'Месяц', tiers: ['year', 'month'], columnWidth: 80 },
+  { id: 'quarter', label: 'Квартал', tiers: ['year', 'month'], columnWidth: 100 },
+  { id: 'year', label: 'Год', tiers: ['year', 'month'], columnWidth: 120 },
 ])
+
+const ganttLabelFormat = (date: Date, tier: GanttUnit) => {
+  if (tier === 'year') return format(date, 'yyyy', { locale: ru })
+  if (tier === 'month') {
+    const withYear = zoom.value === 'day' || zoom.value === 'week'
+    return format(date, withYear ? 'LLLL yyyy' : 'LLLL', { locale: ru })
+  }
+  if (tier === 'day') return format(date, 'd', { locale: ru })
+  return format(date, 'd MMM yyyy', { locale: ru })
+}
 
 const ganttTheme = computed<Record<string, string>>(() => ({
   '--gantt-font': themeVars.value.fontFamily,
@@ -468,6 +480,7 @@ onMounted(() => {
             :end-date="timelineEnd"
             :zoom="zoom"
             :zoom-levels="zoomLevels"
+            :label-format="ganttLabelFormat"
             @task-click="editTask"
             aria-label="Задачи тренеров по времени"
             height="100%"
