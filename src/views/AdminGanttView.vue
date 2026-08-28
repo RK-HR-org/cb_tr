@@ -59,6 +59,7 @@ const zoomLevels = ref<GanttZoomLevel[]>([
   { id: 'year', label: 'Год', tiers: ['year', 'month'], columnWidth: 120 },
 ])
 
+
 function ganttLabelFormat(date: Date, tier: GanttUnit) {
   if (tier === 'year') return format(date, 'yyyy', { locale: ru })
   if (tier === 'month') {
