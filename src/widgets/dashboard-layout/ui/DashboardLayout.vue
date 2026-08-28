@@ -14,6 +14,7 @@ import {
   MoonOutline as MoonIcon,
   SettingsOutline as AutoIcon,
   CalculatorOutline as CalculatorIcon,
+  PersonCircleOutline as AccountIcon,
 } from '@vicons/ionicons5'
 
 const authStore = useAuthStore()
@@ -104,9 +105,8 @@ async function handleLogout() {
           {
             label: 'Гант',
             key: 'gantt',
-            show: isAdmin,
             icon: () => h(NIcon, null, { default: () => h(GanttIcon) }),
-            onClick: () => router.push('/admin/gantt')
+            onClick: () => router.push('/gantt')
           },
           {
             label: 'Календарь',
@@ -148,6 +148,12 @@ async function handleLogout() {
             show: isAdmin,
             icon: () => h(NIcon, null, { default: () => h(BookIcon) }),
             onClick: () => router.push('/admin/dictionaries')
+          },
+          {
+            label: 'Личный кабинет',
+            key: 'account',
+            icon: () => h(NIcon, null, { default: () => h(AccountIcon) }),
+            onClick: () => router.push('/account')
           }
         ]"
       />

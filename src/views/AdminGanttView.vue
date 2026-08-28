@@ -22,10 +22,18 @@ import {
   type ProductionCalendarDay,
 } from '../entities/production-calendar'
 import { ProductionCalendarBands } from '../features/production-calendar-gantt'
+import { useAuthStore } from '../stores/auth'
 
+const authStore = useAuthStore()
 const router = useRouter()
 const message = useMessage()
 const themeVars = useThemeVars()
+const isAdmin = computed(() => authStore.profile?.role === 'admin')
+const currentTrainerId = computed(() => {
+  if (isAdmin.value) return null
+  const id = Number(authStore.profile?.id)
+  return Number.isInteger(id) && id > 0 ? id : null
+})
 const loading = ref(true)
 const rows = ref<GanttRowData[]>([])
 const productionCalendarDays = ref<ProductionCalendarDay[]>([])
@@ -51,7 +59,8 @@ const zoomLevels = ref<GanttZoomLevel[]>([
   { id: 'year', label: 'Год', tiers: ['year', 'month'], columnWidth: 120 },
 ])
 
-const ganttLabelFormat = (date: Date, tier: GanttUnit) => {
+
+function ganttLabelFormat(date: Date, tier: GanttUnit) {
   if (tier === 'year') return format(date, 'yyyy', { locale: ru })
   if (tier === 'month') {
     const withYear = zoom.value === 'day' || zoom.value === 'week'
@@ -325,6 +334,7 @@ function buildRows(items: any[], trainerRecords: any[]): GanttRowData[] {
       end: range.end,
       progress: item.progress ?? 0,
       meta: {
+        trainerId: Number(trainerId),
         trainer: trainerName,
         project: projectName,
         subproject: subName,
@@ -391,6 +401,17 @@ async function loadGanttData() {
   }
 }
 
+function taskTrainerId(task: GanttTaskEvent['task']) {
+  const trainerId = task.meta?.trainerId
+  return typeof trainerId === 'number' ? trainerId : Number(trainerId)
+}
+
+function canEditTask(task: GanttTaskEvent['task']) {
+  if (isAdmin.value) return true
+  const trainerId = taskTrainerId(task)
+  return currentTrainerId.value != null && trainerId === currentTrainerId.value
+}
+
 function editTask(event: GanttTaskEvent) {
   const id = Number(event.task.id)
   if (id < 0) {
@@ -399,6 +420,10 @@ function editTask(event: GanttTaskEvent) {
   }
   if (!Number.isInteger(id)) {
     message.warning('Не удалось определить запись активности')
+    return
+  }
+  if (!canEditTask(event.task)) {
+    message.info('Вы можете редактировать только свои задачи')
     return
   }
   editingActivityId.value = id
@@ -415,9 +440,11 @@ onMounted(() => {
     <div class="mb-6 flex justify-between items-center">
       <div>
         <n-h2 class="!m-0">Гант диаграмма</n-h2>
-        <n-text depth="3">Задачи тренеров во времени</n-text>
+        <n-text depth="3">
+          {{ isAdmin ? 'Задачи тренеров во времени' : 'Просмотр всех задач. Редактировать можно только свои.' }}
+        </n-text>
       </div>
-      <n-button type="primary" @click="router.push('/admin/table')">Вернуться к таблице</n-button>
+      <n-button v-if="isAdmin" type="primary" @click="router.push('/admin/table')">Вернуться к таблице</n-button>
     </div>
 
     <n-card
@@ -544,6 +571,8 @@ onMounted(() => {
     <ActivityEditorModal
       v-model:show="showActivityEditor"
       :record-id="editingActivityId"
+      :trainer-id="currentTrainerId"
+      :can-manage-participants="isAdmin"
       @saved="loadGanttData"
     />
   </DashboardLayout>

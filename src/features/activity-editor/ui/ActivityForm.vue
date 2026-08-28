@@ -23,11 +23,13 @@ withDefaults(defineProps<{
   disabled?: boolean
   compact?: boolean
   groupReadOnlyNote?: boolean
+  groupEventNote?: boolean
 }>(), {
   showParticipants: false,
   disabled: false,
   compact: false,
   groupReadOnlyNote: false,
+  groupEventNote: false,
 })
 
 const model = defineModel<ActivityFormValues>({ required: true })
@@ -48,6 +50,9 @@ const model = defineModel<ActivityFormValues>({ required: true })
     </NFormItem>
     <NText v-else-if="groupReadOnlyNote" depth="3" class="group-event-note">
       Это групповое мероприятие. Изменить его может администратор.
+    </NText>
+    <NText v-else-if="!showParticipants && groupEventNote" depth="3" class="group-event-note">
+      Групповое мероприятие: изменения сохраняются только для вашего назначения.
     </NText>
 
     <NGrid :cols="compact ? 1 : 2" :x-gap="16">
