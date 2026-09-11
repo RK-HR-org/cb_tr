@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/api/supabase'
+import { cached, invalidateCache } from '../../../shared/lib/cache'
 import type {
   ProductionCalendarDay,
   ProductionCalendarDayPayload,
@@ -19,12 +20,14 @@ function calendarError(error: unknown) {
 }
 
 export async function listProductionCalendarDays(): Promise<ProductionCalendarDay[]> {
-  const { data, error } = await supabase
-    .from('production_calendar_days')
-    .select('id, event_date, day_type, name, created_at, updated_at')
-    .order('event_date')
-  if (error) throw calendarError(error)
-  return data || []
+  return cached('production-calendar-days', async () => {
+    const { data, error } = await supabase
+      .from('production_calendar_days')
+      .select('id, event_date, day_type, name, created_at, updated_at')
+      .order('event_date')
+    if (error) throw calendarError(error)
+    return data || []
+  })
 }
 
 export async function saveProductionCalendarDay(
@@ -44,6 +47,7 @@ export async function saveProductionCalendarDay(
         .select('id, event_date, day_type, name, created_at, updated_at')
         .single()
   if (result.error) throw calendarError(result.error)
+  invalidateCache('production-calendar-days')
   return result.data
 }
 
@@ -53,6 +57,7 @@ export async function deleteProductionCalendarDay(id: number): Promise<void> {
     .delete()
     .eq('id', id)
   if (error) throw calendarError(error)
+  invalidateCache('production-calendar-days')
 }
 
 export async function getWorkNormSetting(year: number): Promise<WorkNormSetting | null> {

@@ -26,6 +26,7 @@ import {
 import { DashboardLayout } from '../widgets/dashboard-layout'
 import { useAuthStore } from '../stores/auth'
 import {
+  getActivityReferences,
   listCalendarActivities,
   updateActivitySchedule,
   type ActivityListItem,
@@ -177,6 +178,10 @@ function eventColor(
   return resolveProjectColor(projectMainId, project?.color, projectColorFallback)
 }
 
+function isPendingActivity(record: ActivityListItem): boolean {
+  return record.approval_status === 'pending' || Boolean(record.pending_change_type)
+}
+
 const activityEvents = computed<EventInput[]>(() =>
   records.value.flatMap(record => {
     const timed = Boolean(record.start_datetime && record.end_datetime)
@@ -188,18 +193,22 @@ const activityEvents = computed<EventInput[]>(() =>
         : null
     if (!start || !end) return []
 
+    const pending = isPendingActivity(record)
+    const baseTitle = record.task_desc?.trim()
+      || record.project_names?.name
+      || (record.source_schedule_key ? `График ${record.source_schedule_key}` : 'Событие')
+
     return [{
       id: 'activity-' + record.id,
-      title: record.task_desc?.trim()
-        || record.project_names?.name
-        || (record.source_schedule_key ? `График ${record.source_schedule_key}` : 'Событие'),
+      title: pending ? `${baseTitle} (на утверждении)` : baseTitle,
       start,
       end,
       allDay: !timed,
       backgroundColor: eventColor(record.project_main_id, record.project_names),
       borderColor: eventColor(record.project_main_id, record.project_names),
+      classNames: pending ? ['event-pending'] : [],
       editable: isAdmin.value || record.trainer_id === targetTrainerId.value,
-      extendedProps: { record },
+      extendedProps: { record, pendingApproval: pending },
     }]
   }),
 )
@@ -335,8 +344,13 @@ async function persistDates(
       message.success('Период мероприятия обновлён')
     } else if (item && targetTrainerId.value) {
       await updateActivitySchedule(item, targetTrainerId.value, isAdmin.value, patch)
-      Object.assign(item, patch)
-      message.success('Период активности обновлён')
+      if (isAdmin.value) {
+        Object.assign(item, patch)
+        message.success('Период активности обновлён')
+      } else {
+        await loadEvents()
+        message.success('Изменение отправлено на утверждение')
+      }
     } else {
       revert()
     }
@@ -459,6 +473,7 @@ onMounted(async () => {
     const [, productionDays] = await Promise.all([
       loadTrainers(),
       listProductionCalendarDays(),
+      getActivityReferences(),
     ])
     productionCalendarDays.value = productionDays
     await loadEvents()
@@ -581,6 +596,11 @@ onBeforeUnmount(() => mediaQuery.removeEventListener('change', handleMedia))
   flex:none;
   object-fit:contain;
   filter: brightness(0) invert(1);
+}
+:deep(.fc-event.event-pending) {
+  opacity: 0.72;
+  border-style: dashed !important;
+  border-width: 2px !important;
 }
 @media (max-width:700px) {
   .calendar-heading,.calendar-actions { align-items:stretch; flex-direction:column }

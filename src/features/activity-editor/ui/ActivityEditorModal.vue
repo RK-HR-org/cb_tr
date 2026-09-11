@@ -128,7 +128,11 @@ async function handleSave() {
       canManageParticipants: props.canManageParticipants,
       payload: activityFormToPayload(form.value),
     })
-    message.success(props.recordId ? 'Активность обновлена' : 'Активность добавлена')
+    message.success(
+      props.canManageParticipants
+        ? (props.recordId ? 'Активность обновлена' : 'Активность добавлена')
+        : (props.recordId ? 'Изменение отправлено на утверждение' : 'Активность отправлена на утверждение'),
+    )
     emit('update:show', false)
     emit('saved')
   } catch (error: unknown) {
@@ -147,7 +151,11 @@ async function handleDelete() {
   saving.value = true
   try {
     await deleteActivity(props.recordId, trainerId, props.canManageParticipants)
-    message.success('Активность удалена')
+    message.success(
+      props.canManageParticipants
+        ? 'Активность удалена'
+        : 'Запрос на удаление отправлен на утверждение',
+    )
     emit('update:show', false)
     emit('saved')
   } catch (error: unknown) {

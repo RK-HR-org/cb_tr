@@ -261,9 +261,25 @@ export type AdminCalendarEventInsert = {
   updated_at?: string
 }
 
+export type ActivityChangeRequestRow = {
+  id: number
+  trainer_id: number
+  trainer_project_id: number | null
+  change_type: 'create' | 'update' | 'delete'
+  status: 'pending' | 'approved' | 'rejected'
+  proposed_payload: Json | null
+  previous_payload: Json | null
+  submitted_at: string
+  reviewed_at: string | null
+  reviewed_by: string | null
+  review_notes: string | null
+  result_trainer_project_id: number | null
+}
+
 export type TrainerProjectRow = {
   id: number
   trainer_id: number
+  approval_status: 'approved' | 'pending' | 'rejected'
   project_type_id: number | null
   project_main_id: number | null
   project_sub: string | null
@@ -290,6 +306,7 @@ export type TrainerProjectRow = {
 export type TrainerProjectInsert = {
   id?: number
   trainer_id: number
+  approval_status?: 'approved' | 'pending' | 'rejected'
   project_type_id?: number | null
   project_main_id?: number | null
   project_sub?: string | null
@@ -327,6 +344,15 @@ export type Database = {
       delivery_formats: TableDefinition<ClassifiedRow, ClassifiedInsert>
       recurrence_types: TableDefinition<ClassifiedRow, ClassifiedInsert>
       trainer_projects: TableDefinition<TrainerProjectRow, TrainerProjectInsert>
+      activity_change_requests: TableDefinition<
+        ActivityChangeRequestRow,
+        Omit<ActivityChangeRequestRow, 'id' | 'submitted_at' | 'reviewed_at' | 'reviewed_by'> & {
+          id?: number
+          submitted_at?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+        }
+      >
       cities: TableDefinition<ActiveNamedRow, ActiveNamedInsert>
       divisions: TableDefinition<ActiveNamedRow, ActiveNamedInsert>
       directions: TableDefinition<
@@ -428,6 +454,43 @@ export type Database = {
       }
     }
     Functions: {
+      list_gantt_activities: {
+        Args: {
+          p_from: string
+          p_to: string
+        }
+        Returns: {
+          id: number
+          trainer_id: number
+          approval_status: string | null
+          event_group_id: string | null
+          project_type_id: number | null
+          project_main_id: number | null
+          project_sub: string | null
+          role_id: number | null
+          activity_type_id: number | null
+          delivery_format_id: number | null
+          recurrence_type_id: number | null
+          start_datetime: string | null
+          end_datetime: string | null
+          start_date: string | null
+          end_date: string | null
+          source_type: string | null
+          source_schedule_key: string | null
+          source_event_key: string | null
+          is_duplicate: boolean | null
+          task_desc: string | null
+          comments: string | null
+          project_name: string | null
+          project_color: string | null
+          trainer_full_name: string | null
+          activity_type_name: string | null
+          delivery_format_name: string | null
+          role_name: string | null
+          project_type_name: string | null
+          recurrence_type_name: string | null
+        }[]
+      }
       save_project_card: {
         Args: {
           p_project_id: number | null
@@ -445,6 +508,26 @@ export type Database = {
           p_payload: Json
         }
         Returns: undefined
+      }
+      submit_trainer_activity_change: {
+        Args: {
+          p_change_type: string
+          p_trainer_project_id: number | null
+          p_payload: Json
+        }
+        Returns: number
+      }
+      approve_activity_change: {
+        Args: { p_request_id: number }
+        Returns: undefined
+      }
+      reject_activity_change: {
+        Args: { p_request_id: number; p_notes?: string | null }
+        Returns: undefined
+      }
+      count_pending_activity_change_requests: {
+        Args: Record<string, never>
+        Returns: number
       }
       sync_admin_calendar_event_trainers: {
         Args: { p_event_ids: number[]; p_trainer_ids?: number[] }

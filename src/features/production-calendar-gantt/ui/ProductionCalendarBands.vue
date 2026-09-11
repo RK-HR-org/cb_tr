@@ -6,12 +6,16 @@ import { parseLocalDate } from '../../../shared/lib/date'
 
 const props = defineProps<{
   days: ProductionCalendarDay[]
+  from?: Date
+  to?: Date
 }>()
 
 const { contentHeight, dateToX } = useGanttContext()
 const bands = computed(() => props.days.flatMap((day) => {
   const start = parseLocalDate(day.event_date)
   if (!start) return []
+  if (props.from && start < props.from) return []
+  if (props.to && start > props.to) return []
   const end = new Date(start)
   end.setDate(end.getDate() + 1)
   const left = dateToX(start)

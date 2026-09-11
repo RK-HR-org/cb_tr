@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/api/supabase'
+import { cached, invalidateCache } from '../../../shared/lib/cache'
 import type { SelectOption } from '../../../shared/types'
 import type {
   Trainer,
@@ -25,12 +26,14 @@ function trainerSaveError(error: unknown) {
 }
 
 export async function listTrainers(): Promise<Trainer[]> {
-  const { data, error } = await supabase
-    .from('trainers')
-    .select(TRAINER_FIELDS)
-    .order('full_name')
-  if (error) throw error
-  return (data || []) as unknown as Trainer[]
+  return cached('trainers', async () => {
+    const { data, error } = await supabase
+      .from('trainers')
+      .select(TRAINER_FIELDS)
+      .order('full_name')
+    if (error) throw error
+    return (data || []) as unknown as Trainer[]
+  })
 }
 
 export async function getTrainer(id: number | string): Promise<Trainer | null> {
@@ -60,6 +63,7 @@ export async function saveTrainer(
     : supabase.from('trainers').insert(payload)
   const { data, error } = await query.select(TRAINER_FIELDS).single()
   if (error) throw trainerSaveError(error)
+  invalidateCache('trainers')
   return data as unknown as Trainer
 }
 

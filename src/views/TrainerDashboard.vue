@@ -77,8 +77,8 @@ function openEdit(row: ActivityListItem) {
 async function handleDuplicate(row: ActivityListItem) {
   if (!targetTrainerId.value) return
   try {
-    await duplicateActivity(row, targetTrainerId.value)
-    message.success('Запись продублирована как шаблон')
+    await duplicateActivity(row, targetTrainerId.value, isAdminViewing.value)
+    message.success(isAdminViewing.value ? 'Запись продублирована как шаблон' : 'Дубликат отправлен на утверждение')
     await loadProjects()
   } catch (error: unknown) {
     message.error(error instanceof Error ? error.message : 'Не удалось дублировать запись')

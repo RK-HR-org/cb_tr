@@ -1,6 +1,12 @@
 import { supabase } from '../../../shared/api/supabase'
 import type { Json } from '../../../shared/api/supabase/database.types'
+import { cached } from '../../../shared/lib/cache'
 import type { SelectOption } from '../../../shared/types'
+import {
+  listTrainerPendingRequests,
+  submitActivityChange,
+} from '../../activity-approval'
+import type { ActivityChangeRequest } from '../../activity-approval'
 import type {
   ActivityListItem,
   ActivityPayload,
@@ -9,7 +15,7 @@ import type {
 } from '../model/types'
 
 const ACTIVITY_FIELDS = `
-  id, trainer_id, event_group_id, project_type_id, project_main_id, project_sub,
+  id, trainer_id, approval_status, event_group_id, project_type_id, project_main_id, project_sub,
   role_id, activity_type_id, delivery_format_id, recurrence_type_id,
   start_datetime, end_datetime, start_date, end_date,
   source_type, source_file, source_schedule_key, source_sheet, source_range, source_event_key,
@@ -65,6 +71,10 @@ function asProjectOptions(
 }
 
 export async function getActivityReferences(): Promise<ActivityReferences> {
+  return cached('activity-references', loadActivityReferences)
+}
+
+async function loadActivityReferences(): Promise<ActivityReferences> {
   const results = await Promise.all([
     supabase.from('project_types').select('id, name').order('name'),
     supabase
@@ -120,6 +130,64 @@ export async function getActivityParticipantIds(record: ActivityRecord): Promise
   return (data || []).map(row => row.trainer_id)
 }
 
+function applyPendingOverlays<T extends ActivityListItem>(
+  items: T[],
+  requests: ActivityChangeRequest[],
+): T[] {
+  const byProjectId = new Map<number, ActivityChangeRequest>()
+  for (const request of requests) {
+    if (request.trainer_project_id != null) {
+      byProjectId.set(request.trainer_project_id, request)
+    }
+  }
+
+  const merged = items.map((item) => {
+    const request = byProjectId.get(item.id)
+    if (!request) {
+      return {
+        ...item,
+        approval_status: item.approval_status ?? 'approved',
+      }
+    }
+
+    if (request.change_type === 'update' && request.proposed_payload) {
+      return {
+        ...item,
+        ...request.proposed_payload,
+        approval_status: item.approval_status ?? 'approved',
+        pending_change_type: 'update' as const,
+        pending_request_id: request.id,
+      }
+    }
+
+    if (request.change_type === 'delete') {
+      return {
+        ...item,
+        approval_status: item.approval_status ?? 'approved',
+        pending_change_type: 'delete' as const,
+        pending_request_id: request.id,
+      }
+    }
+
+    return {
+      ...item,
+      approval_status: item.approval_status ?? 'approved',
+      pending_change_type: request.change_type,
+      pending_request_id: request.id,
+    }
+  })
+
+  return merged
+}
+
+async function mergeTrainerPendingChanges<T extends ActivityListItem>(
+  items: T[],
+  trainerId: number,
+): Promise<T[]> {
+  const requests = await listTrainerPendingRequests(trainerId)
+  return applyPendingOverlays(items, requests)
+}
+
 export async function listActivitiesByTrainer(trainerId: number): Promise<ActivityListItem[]> {
   const { data, error } = await supabase
     .from('trainer_projects')
@@ -127,7 +195,8 @@ export async function listActivitiesByTrainer(trainerId: number): Promise<Activi
     .eq('trainer_id', trainerId)
     .order('id', { ascending: false })
   if (error) throw error
-  return (data || []) as unknown as ActivityListItem[]
+  const items = (data || []) as unknown as ActivityListItem[]
+  return mergeTrainerPendingChanges(items, trainerId)
 }
 
 export async function listCalendarActivities(trainerId: number): Promise<ActivityListItem[]> {
@@ -144,66 +213,114 @@ export async function listAllActivities(): Promise<ActivityListItem[]> {
   return (data || []) as unknown as ActivityListItem[]
 }
 
-export async function listGanttActivities(): Promise<GanttActivityItem[]> {
+type GanttRpcRow = {
+  id: number
+  trainer_id: number
+  approval_status: string | null
+  event_group_id: string | null
+  project_type_id: number | null
+  project_main_id: number | null
+  project_sub: string | null
+  role_id: number | null
+  activity_type_id: number | null
+  delivery_format_id: number | null
+  recurrence_type_id: number | null
+  start_datetime: string | null
+  end_datetime: string | null
+  start_date: string | null
+  end_date: string | null
+  source_type: string | null
+  source_schedule_key: string | null
+  source_event_key: string | null
+  is_duplicate: boolean | null
+  task_desc: string | null
+  comments: string | null
+  project_name: string | null
+  project_color: string | null
+  trainer_full_name: string | null
+  activity_type_name: string | null
+  delivery_format_name: string | null
+  role_name: string | null
+  project_type_name: string | null
+  recurrence_type_name: string | null
+}
+
+function named(name: string | null | undefined, color?: string | null) {
+  if (!name && color == null) return null
+  return { name: name ?? undefined, color: color ?? null }
+}
+
+function asIsoDate(value: unknown): string | null {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const year = value.getFullYear()
+    const month = String(value.getMonth() + 1).padStart(2, '0')
+    const day = String(value.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  if (typeof value !== 'string' || !value) return null
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value)
+  return match ? match[1] : value
+}
+
+function mapGanttRow(row: GanttRpcRow): GanttActivityItem {
+  return {
+    id: row.id,
+    trainer_id: row.trainer_id,
+    approval_status: (row.approval_status as GanttActivityItem['approval_status']) ?? 'approved',
+    event_group_id: row.event_group_id,
+    project_type_id: row.project_type_id,
+    project_main_id: row.project_main_id,
+    project_sub: row.project_sub,
+    role_id: row.role_id,
+    activity_type_id: row.activity_type_id,
+    delivery_format_id: row.delivery_format_id,
+    recurrence_type_id: row.recurrence_type_id,
+    start_datetime: row.start_datetime,
+    end_datetime: row.end_datetime,
+    start_date: asIsoDate(row.start_date),
+    end_date: asIsoDate(row.end_date),
+    source_type: row.source_type,
+    source_schedule_key: row.source_schedule_key,
+    source_event_key: row.source_event_key,
+    is_duplicate: row.is_duplicate,
+    task_desc: row.task_desc,
+    comments: row.comments,
+    project_names: named(row.project_name, row.project_color),
+    trainers: { full_name: row.trainer_full_name ?? undefined },
+    activity_types: named(row.activity_type_name),
+    delivery_formats: named(row.delivery_format_name),
+    roles: named(row.role_name),
+    project_types: named(row.project_type_name),
+    recurrence_types: named(row.recurrence_type_name),
+  }
+}
+
+export async function listGanttActivities(options: {
+  from: string
+  to: string
+  viewerTrainerId?: number | null
+}): Promise<GanttActivityItem[]> {
   const pageSize = 1000
-  const items: GanttActivityItem[] = []
-  let from = 0
+  const rows: GanttRpcRow[] = []
+  let offset = 0
 
   while (true) {
     const { data, error } = await supabase
-      .from('trainer_projects')
-      .select(`
-        id, trainer_id, event_group_id, project_type_id, project_main_id, project_sub,
-        role_id, activity_type_id, delivery_format_id, recurrence_type_id,
-        start_datetime, end_datetime, start_date, end_date,
-        source_type, source_schedule_key, source_event_key, is_duplicate, task_desc, comments,
-        project_names (name), trainers (full_name), activity_types (name),
-        delivery_formats (name), roles (name), project_types (name), recurrence_types (name)
-      `)
-      .order('id', { ascending: true })
-      .range(from, from + pageSize - 1)
+      .rpc('list_gantt_activities', {
+        p_from: options.from,
+        p_to: options.to,
+      })
+      .range(offset, offset + pageSize - 1)
     if (error) throw error
-    const page = (data || []) as unknown as GanttActivityItem[]
-    items.push(...page)
+    const page = (data || []) as GanttRpcRow[]
+    rows.push(...page)
     if (page.length < pageSize) break
-    from += pageSize
+    offset += pageSize
   }
 
-  const [eventsResult, assignmentsResult] = await Promise.all([
-    supabase
-      .from('admin_calendar_events')
-      .select('id, project_main_id, title, start_date, end_date, start_datetime, end_datetime, comments, program_schedule_id, project_names(name, color)')
-      .not('program_schedule_id', 'is', null),
-    supabase.from('admin_calendar_event_trainers').select('event_id'),
-  ])
-  if (eventsResult.error) throw eventsResult.error
-  if (assignmentsResult.error) throw assignmentsResult.error
-  const assignedEventIds = new Set((assignmentsResult.data || []).map(row => row.event_id))
-  for (const event of eventsResult.data || []) {
-    if (assignedEventIds.has(event.id)) continue
-    items.push({
-      id: -event.id,
-      trainer_id: 0,
-      event_group_id: null,
-      project_type_id: null,
-      project_main_id: event.project_main_id,
-      project_sub: null,
-      role_id: null,
-      activity_type_id: null,
-      delivery_format_id: null,
-      recurrence_type_id: null,
-      start_datetime: event.start_datetime,
-      end_datetime: event.end_datetime,
-      start_date: event.start_date,
-      end_date: event.end_date,
-      source_type: 'admin_calendar_event',
-      source_event_key: String(event.id),
-      is_duplicate: false,
-      task_desc: event.title,
-      comments: event.comments,
-      project_names: event.project_names,
-      trainers: { full_name: 'Не назначено' },
-    } as unknown as GanttActivityItem)
+  const items = rows.map(mapGanttRow)
+  if (options.viewerTrainerId) {
+    return mergeTrainerPendingChanges(items, options.viewerTrainerId)
   }
   return items
 }
@@ -248,6 +365,12 @@ export async function saveActivity(command: SaveActivityCommand): Promise<void> 
   const participantIds = command.canManageParticipants
     ? command.participantIds
     : [command.trainerId]
+
+  if (!command.canManageParticipants) {
+    const changeType = command.recordId ? 'update' : 'create'
+    await submitActivityChange(changeType, command.recordId, command.payload)
+    return
+  }
 
   const rpcResult = await supabase.rpc('save_trainer_activity', {
     p_record_id: command.recordId,
@@ -325,6 +448,11 @@ export async function deleteActivity(
   trainerId: number,
   canManageParticipants: boolean,
 ): Promise<void> {
+  if (!canManageParticipants) {
+    await submitActivityChange('delete', recordId, null)
+    return
+  }
+
   const current = await getActivity(recordId)
   if (current.event_group_id && !canManageParticipants) {
     const { error } = await supabase
@@ -344,13 +472,16 @@ export async function deleteActivity(
   if (error) throw error
 }
 
-export async function duplicateActivity(record: ActivityRecord, trainerId: number): Promise<void> {
-  const { error } = await supabase.from('trainer_projects').insert({
-    trainer_id: trainerId,
-    project_type_id: record.project_type_id,
-    project_main_id: record.project_main_id,
-    project_sub: record.project_sub,
-    role_id: record.role_id,
+export async function duplicateActivity(
+  record: ActivityRecord,
+  trainerId: number,
+  canManageParticipants = true,
+): Promise<void> {
+  const payload: ActivityPayload = {
+    project_type_id: record.project_type_id!,
+    project_main_id: record.project_main_id!,
+    project_sub: record.project_sub ?? '',
+    role_id: record.role_id!,
     activity_type_id: record.activity_type_id,
     delivery_format_id: record.delivery_format_id,
     recurrence_type_id: record.recurrence_type_id,
@@ -358,10 +489,21 @@ export async function duplicateActivity(record: ActivityRecord, trainerId: numbe
     end_datetime: record.end_datetime,
     start_date: record.start_date,
     end_date: record.end_date,
-    task_desc: record.task_desc,
-    comments: record.comments,
-    event_group_id: null,
+    task_desc: record.task_desc ?? '',
+    comments: record.comments ?? '',
     is_duplicate: true,
+  }
+
+  if (!canManageParticipants) {
+    await submitActivityChange('create', null, payload)
+    return
+  }
+
+  const { error } = await supabase.from('trainer_projects').insert({
+    trainer_id: trainerId,
+    ...payload,
+    event_group_id: null,
+    approval_status: 'approved',
   })
   if (error) throw error
 }
@@ -372,6 +514,27 @@ export async function updateActivitySchedule(
   canManageGroup: boolean,
   patch: Pick<ActivityPayload, 'start_date' | 'end_date' | 'start_datetime' | 'end_datetime'>,
 ): Promise<void> {
+  if (!canManageGroup) {
+    const payload: ActivityPayload = {
+      project_type_id: record.project_type_id!,
+      project_main_id: record.project_main_id!,
+      project_sub: record.project_sub ?? '',
+      role_id: record.role_id!,
+      activity_type_id: record.activity_type_id,
+      delivery_format_id: record.delivery_format_id,
+      recurrence_type_id: record.recurrence_type_id,
+      start_datetime: patch.start_datetime ?? record.start_datetime,
+      end_datetime: patch.end_datetime ?? record.end_datetime,
+      start_date: patch.start_date ?? record.start_date,
+      end_date: patch.end_date ?? record.end_date,
+      task_desc: record.task_desc ?? '',
+      comments: record.comments ?? '',
+      is_duplicate: record.is_duplicate ?? false,
+    }
+    await submitActivityChange('update', record.id, payload)
+    return
+  }
+
   if (record.event_group_id && !canManageGroup) {
     const { error } = await supabase
       .from('trainer_projects')

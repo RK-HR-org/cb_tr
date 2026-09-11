@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { h, computed } from 'vue'
-import { NIcon } from 'naive-ui'
-import { useRouter } from 'vue-router'
+import { h, computed, onMounted, ref, watch } from 'vue'
+import { NBadge, NIcon } from 'naive-ui'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../../stores/auth'
 import { useThemeStore } from '../../../stores/theme'
+import { countPendingChangeRequests } from '../../../entities/activity-approval'
 import { 
   LogOutOutline as LogoutIcon, 
   BarChartOutline as StatsIcon, 
@@ -13,15 +14,32 @@ import {
   SunnyOutline as SunIcon,
   MoonOutline as MoonIcon,
   SettingsOutline as AutoIcon,
-  CalculatorOutline as CalculatorIcon,
   PersonCircleOutline as AccountIcon,
 } from '@vicons/ionicons5'
 
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
 const router = useRouter()
+const route = useRoute()
+const pendingApprovalsCount = ref(0)
 
 const isAdmin = computed(() => authStore.profile?.role === 'admin')
+
+async function refreshPendingApprovalsCount() {
+  if (!isAdmin.value) {
+    pendingApprovalsCount.value = 0
+    return
+  }
+  try {
+    pendingApprovalsCount.value = await countPendingChangeRequests()
+  } catch {
+    pendingApprovalsCount.value = 0
+  }
+}
+
+onMounted(refreshPendingApprovalsCount)
+watch(() => route.fullPath, refreshPendingApprovalsCount)
+watch(isAdmin, refreshPendingApprovalsCount)
 
 const GanttIcon = () => h(
   'svg',
@@ -88,13 +106,13 @@ async function handleLogout() {
       <!-- Sider Menu -->
       <n-menu
         :options="[
-          {
-            label: 'Дашборд',
-            key: 'dashboard',
-            show: isAdmin,
-            icon: () => h(NIcon, null, { default: () => h(StatsIcon) }),
-            onClick: () => router.push('/admin/dashboard')
-          },
+          // {
+          //   label: 'Дашборд',
+          //   key: 'dashboard',
+          //   show: isAdmin,
+          //   icon: () => h(NIcon, null, { default: () => h(StatsIcon) }),
+          //   onClick: () => router.push('/admin/dashboard')
+          // },
           {
             label: 'Таблица',
             key: 'table',
@@ -114,13 +132,13 @@ async function handleLogout() {
             icon: () => h(NIcon, null, { default: () => h(CalendarIcon) }),
             onClick: () => router.push('/calendar')
           },
-          {
-            label: 'Нормирование',
-            key: 'work-norms',
-            show: isAdmin,
-            icon: () => h(NIcon, null, { default: () => h(CalculatorIcon) }),
-            onClick: () => router.push('/admin/work-norms')
-          },
+          // {
+          //   label: 'Нормирование',
+          //   key: 'work-norms',
+          //   show: isAdmin,
+          //   icon: () => h(NIcon, null, { default: () => h(CalculatorIcon) }),
+          //   onClick: () => router.push('/admin/work-norms')
+          // },
           {
             label: 'Мои задачи',
             key: 'trainer-dashboard',
@@ -150,6 +168,13 @@ async function handleLogout() {
             onClick: () => router.push('/admin/dictionaries')
           },
           {
+            label: 'На утверждении',
+            key: 'approvals',
+            show: isAdmin,
+            icon: () => h(NIcon, null, { default: () => h(BookIcon) }),
+            onClick: () => router.push('/admin/approvals')
+          },
+          {
             label: 'Личный кабинет',
             key: 'account',
             icon: () => h(NIcon, null, { default: () => h(AccountIcon) }),
@@ -168,6 +193,12 @@ async function handleLogout() {
         </div>
         
         <div class="flex items-center gap-4">
+          <NBadge v-if="isAdmin && pendingApprovalsCount > 0" :value="pendingApprovalsCount" :max="99">
+            <n-button quaternary @click="router.push('/admin/approvals')">
+              На утверждении
+            </n-button>
+          </NBadge>
+
           <n-tooltip trigger="hover">
             <template #trigger>
               <n-button quaternary circle @click="themeStore.toggleTheme">
