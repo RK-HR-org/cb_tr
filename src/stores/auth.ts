@@ -7,6 +7,7 @@ import {
   signIn as apiSignIn,
   signOut as apiSignOut,
 } from '../entities/auth'
+import { clearAppCaches } from '../shared/lib/cache'
 import type { AppProfile } from '../shared/types'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -22,6 +23,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(login: string, password: string) {
     const result = await apiSignIn(login, password)
     if (result.success) {
+      clearAppCaches()
       setProfile(result.profile)
     }
     return result
@@ -50,6 +52,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function signOut() {
     await apiSignOut()
+    clearAppCaches()
     setProfile(null)
   }
 

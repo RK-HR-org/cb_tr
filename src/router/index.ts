@@ -113,6 +113,12 @@ const router = createRouter({
       component: () => import("../pages/work-norms"),
       meta: { requiresAuth: true, role: "admin" },
     },
+    {
+      path: "/admin/approvals",
+      name: "admin-approvals",
+      component: () => import("../pages/admin-approvals"),
+      meta: { requiresAuth: true, role: "admin" },
+    },
   ],
 });
 

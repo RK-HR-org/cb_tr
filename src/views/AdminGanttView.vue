@@ -7,6 +7,7 @@ import { useRouter } from 'vue-router'
 import {
   Gantt,
   GanttNonWorking,
+  type GanttRangeChangeEvent,
   type GanttRowData,
   type GanttTaskEvent,
   type GanttUnit,
@@ -15,14 +16,15 @@ import {
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import '@dizzy_yakov/vue-gantt/styles.css'
-import { listGanttActivities } from '../entities/activity'
-import { listTrainers } from '../entities/trainer'
+import { listGanttActivities, getActivityReferences, type GanttActivityItem } from '../entities/activity'
+import { listTrainers, type Trainer } from '../entities/trainer'
 import {
   listProductionCalendarDays,
   type ProductionCalendarDay,
 } from '../entities/production-calendar'
 import { ProductionCalendarBands } from '../features/production-calendar-gantt'
 import { useAuthStore } from '../stores/auth'
+import { toLocalDateString } from '../shared/lib/date'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -36,6 +38,10 @@ const currentTrainerId = computed(() => {
 })
 const loading = ref(true)
 const rows = ref<GanttRowData[]>([])
+const trainerRecords = ref<Trainer[]>([])
+const ganttItems = ref<GanttActivityItem[]>([])
+const loadedFrom = ref<string | null>(null)
+const loadedTo = ref<string | null>(null)
 const productionCalendarDays = ref<ProductionCalendarDay[]>([])
 const loadedEventCount = ref(0)
 const loadedAssignmentCount = ref(0)
@@ -101,20 +107,18 @@ async function setZoom(level: string) {
 }
 
 function startOfNavigationRange(date: Date) {
-  return new Date(date.getFullYear() - 1, 0, 1)
+  return new Date(date.getFullYear(), 0, 1)
 }
 
 function endOfNavigationRange(date: Date) {
-  return new Date(date.getFullYear() + 1, 11, 31, 23, 59, 59, 999)
+  return new Date(date.getFullYear(), 11, 31, 23, 59, 59, 999)
 }
 
 async function scrollToDate(timestamp: number) {
   const date = new Date(timestamp)
   if (Number.isNaN(date.getTime())) return
 
-  if (date < timelineStart.value) timelineStart.value = startOfNavigationRange(date)
-  if (date > timelineEnd.value) timelineEnd.value = endOfNavigationRange(date)
-
+  await ensureTimelineCovers(date)
   await nextTick()
   requestAnimationFrame(() => {
     ganttRef.value?.scrollToDate(date, { align: 'center', behavior: 'smooth' })
@@ -124,10 +128,7 @@ async function scrollToDate(timestamp: number) {
 async function navigateToToday(behavior: ScrollBehavior) {
   const today = new Date()
   selectedDate.value = today.getTime()
-
-  if (today < timelineStart.value) timelineStart.value = startOfNavigationRange(today)
-  if (today > timelineEnd.value) timelineEnd.value = endOfNavigationRange(today)
-
+  await ensureTimelineCovers(today)
   await nextTick()
   requestAnimationFrame(() => {
     ganttRef.value?.scrollToToday({ align: 'center', behavior })
@@ -160,8 +161,11 @@ function validDateTime(value: unknown) {
 }
 
 function localDateOnly(value: unknown) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate())
+  }
   if (typeof value !== 'string') return null
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
   if (!match) return null
 
   const year = Number(match[1])
@@ -211,13 +215,109 @@ function resolveProjectRange(item: ProjectDateFields): ResolvedProjectRange | nu
   }
 }
 
-function includeProjectDates(items: ProjectDateFields[]) {
-  for (const item of items) {
-    const range = resolveProjectRange(item)
-    if (!range) continue
-    for (const date of [range.start, range.end]) {
-      if (date < timelineStart.value) timelineStart.value = startOfNavigationRange(date)
-      if (date > timelineEnd.value) timelineEnd.value = endOfNavigationRange(date)
+function shiftDateString(value: string, days: number) {
+  const parsed = localDateOnly(value)
+  if (!parsed) return value
+  parsed.setDate(parsed.getDate() + days)
+  return toLocalDateString(parsed)
+}
+
+function mergeGanttItems(incoming: GanttActivityItem[]) {
+  const byId = new Map(ganttItems.value.map(item => [item.id, item]))
+  for (const item of incoming) byId.set(item.id, item)
+  ganttItems.value = Array.from(byId.values())
+}
+
+function applyGanttItems() {
+  const projectItems = ganttItems.value.filter(item => resolveProjectRange(item))
+  loadedAssignmentCount.value = projectItems.filter(item => item.source_type !== 'admin_calendar_event').length
+  loadedEventCount.value = new Set(
+    projectItems.map(item => item.event_group_id || `row-${item.id}`),
+  ).size
+  rows.value = buildRows(projectItems, trainerRecords.value)
+}
+
+async function fetchGanttWindow(from: string, to: string) {
+  return listGanttActivities({
+    from,
+    to,
+    viewerTrainerId: currentTrainerId.value ?? undefined,
+  })
+}
+
+async function ensureTimelineCovers(date: Date) {
+  let expanded = false
+  if (date < timelineStart.value) {
+    timelineStart.value = startOfNavigationRange(date)
+    expanded = true
+  }
+  if (date > timelineEnd.value) {
+    timelineEnd.value = endOfNavigationRange(date)
+    expanded = true
+  }
+  if (expanded) await loadGanttData({ replace: false })
+}
+
+let rangeLoadTimer: ReturnType<typeof setTimeout> | null = null
+
+function onRangeChange(event: GanttRangeChangeEvent) {
+  if (event.start < timelineStart.value) timelineStart.value = event.start
+  if (event.end > timelineEnd.value) timelineEnd.value = event.end
+  if (rangeLoadTimer) clearTimeout(rangeLoadTimer)
+  rangeLoadTimer = setTimeout(() => {
+    rangeLoadTimer = null
+    void loadGanttData({ replace: false })
+  }, 120)
+}
+
+async function loadGanttData(options: { replace?: boolean; scrollToToday?: boolean } = {}) {
+  const replace = options.replace !== false
+  const from = toLocalDateString(timelineStart.value)
+  const to = toLocalDateString(timelineEnd.value)
+  const isFirstLoad = loadedFrom.value == null
+
+  if (isFirstLoad) loading.value = true
+  try {
+    if (replace || isFirstLoad) {
+      const [trainersData, windowItems, productionDays] = await Promise.all([
+        listTrainers(),
+        fetchGanttWindow(from, to),
+        listProductionCalendarDays(),
+        getActivityReferences(),
+      ])
+      trainerRecords.value = trainersData
+      productionCalendarDays.value = productionDays
+      ganttItems.value = windowItems
+      loadedFrom.value = from
+      loadedTo.value = to
+    } else if (loadedFrom.value && loadedTo.value) {
+      const ranges: Array<{ from: string; to: string }> = []
+      if (from < loadedFrom.value) {
+        ranges.push({ from, to: shiftDateString(loadedFrom.value, -1) })
+      }
+      if (to > loadedTo.value) {
+        ranges.push({ from: shiftDateString(loadedTo.value, 1), to })
+      }
+      if (ranges.length) {
+        const pages = await Promise.all(ranges.map(range => fetchGanttWindow(range.from, range.to)))
+        mergeGanttItems(pages.flat())
+        if (from < loadedFrom.value) loadedFrom.value = from
+        if (to > loadedTo.value) loadedTo.value = to
+      }
+    }
+
+    applyGanttItems()
+  } catch (err: any) {
+    message.error('Ошибка загрузки данных Ганта: ' + err.message)
+    if (replace || isFirstLoad) {
+      ganttItems.value = []
+      rows.value = []
+    }
+  } finally {
+    loading.value = false
+    if (options.scrollToToday && rows.value.length) {
+      await nextTick()
+      await navigateToToday('auto')
     }
   }
 }
@@ -327,12 +427,14 @@ function buildRows(items: any[], trainerRecords: any[]): GanttRowData[] {
       ?? (item.source_schedule_key ? `График ${item.source_schedule_key}` : 'Без проекта')
     const subName = item.project_sub ? String(item.project_sub) : null
     const itemId = item.id ?? `fallback-${index}`
+    const pending = item.approval_status === 'pending' || Boolean(item.pending_change_type)
     const task = {
       id: String(itemId),
-      name: description,
+      name: pending ? `${description} (на утверждении)` : description,
       start: range.start,
       end: range.end,
       progress: item.progress ?? 0,
+      className: pending ? 'gantt-task-pending' : undefined,
       meta: {
         trainerId: Number(trainerId),
         trainer: trainerName,
@@ -346,6 +448,8 @@ function buildRows(items: any[], trainerRecords: any[]): GanttRowData[] {
         end: range.displayEnd,
         allDay: range.allDay,
         eventGroupId: item.event_group_id || '',
+        approvalStatus: item.approval_status ?? 'approved',
+        pendingChangeType: item.pending_change_type ?? '',
       },
     }
 
@@ -371,34 +475,6 @@ function buildRows(items: any[], trainerRecords: any[]): GanttRowData[] {
   })
 
   return result
-}
-
-async function loadGanttData() {
-  loading.value = true
-  try {
-    const [trainersData, allProjects, productionDays] = await Promise.all([
-      listTrainers(),
-      listGanttActivities(),
-      listProductionCalendarDays(),
-    ])
-    productionCalendarDays.value = productionDays
-    const projectItems = allProjects.filter(item => resolveProjectRange(item))
-    loadedAssignmentCount.value = projectItems.filter((item: any) => item.source_type !== 'admin_calendar_event').length
-    loadedEventCount.value = new Set(
-      projectItems.map((item: any) => item.event_group_id || `row-${item.id}`),
-    ).size
-    includeProjectDates(projectItems)
-    rows.value = buildRows(projectItems, trainersData)
-  } catch (err: any) {
-    message.error('Ошибка загрузки данных Ганта: ' + err.message)
-    rows.value = []
-  } finally {
-    loading.value = false
-    if (rows.value.length) {
-      await nextTick()
-      await navigateToToday('auto')
-    }
-  }
 }
 
 function taskTrainerId(task: GanttTaskEvent['task']) {
@@ -431,7 +507,7 @@ function editTask(event: GanttTaskEvent) {
 }
 
 onMounted(() => {
-  loadGanttData()
+  loadGanttData({ replace: true, scrollToToday: true })
 })
 </script>
 
@@ -509,12 +585,17 @@ onMounted(() => {
             :zoom-levels="zoomLevels"
             :label-format="ganttLabelFormat"
             @task-click="editTask"
+            @range-change="onRangeChange"
             aria-label="Задачи тренеров по времени"
             height="100%"
           >
             <template #non-working>
               <GanttNonWorking />
-              <ProductionCalendarBands :days="productionCalendarDays" />
+              <ProductionCalendarBands
+                :days="productionCalendarDays"
+                :from="timelineStart"
+                :to="timelineEnd"
+              />
             </template>
             <template #summaryBar="{ row, collapsed, left, width }">
               <NTooltip v-if="collapsed" trigger="hover" placement="top">
@@ -559,6 +640,9 @@ onMounted(() => {
                 <span v-if="tooltipValue(task, 'format')"><b>Формат:</b> {{ tooltipValue(task, 'format') }}</span>
                 <span v-if="tooltipValue(task, 'description')"><b>Описание:</b> {{ tooltipValue(task, 'description') }}</span>
                 <span><b>Период:</b> {{ tooltipValue(task, 'start') }} — {{ tooltipValue(task, 'end') }}</span>
+                <span v-if="tooltipValue(task, 'pendingChangeType') || tooltipValue(task, 'approvalStatus') === 'pending'">
+                  <b>Статус:</b> на утверждении
+                </span>
               </div>
             </template>
           </Gantt>
@@ -573,7 +657,7 @@ onMounted(() => {
       :record-id="editingActivityId"
       :trainer-id="currentTrainerId"
       :can-manage-participants="isAdmin"
-      @saved="loadGanttData"
+      @saved="() => loadGanttData({ replace: true })"
     />
   </DashboardLayout>
 </template>
@@ -713,5 +797,11 @@ onMounted(() => {
 
 .summary-tooltip__item small {
   opacity: 0.75;
+}
+
+:deep(.gantt-task-pending) {
+  opacity: 0.72;
+  outline: 2px dashed color-mix(in srgb, var(--gantt-bar-color) 70%, transparent);
+  outline-offset: -2px;
 }
 </style>

@@ -5,9 +5,15 @@ export type NamedRelation = {
   color?: string | null
 } | null
 
+export type ApprovalStatus = 'approved' | 'pending' | 'rejected'
+export type PendingChangeType = 'create' | 'update' | 'delete'
+
 export type ActivityRecord = {
   id: number
   trainer_id: number
+  approval_status?: ApprovalStatus
+  pending_change_type?: PendingChangeType | null
+  pending_request_id?: number | null
   event_group_id: string | null
   project_type_id: number | null
   project_main_id: number | null
