@@ -58,7 +58,7 @@ const initialDate = new Date()
 const timelineStart = ref(startOfNavigationRange(initialDate))
 const timelineEnd = ref(endOfNavigationRange(initialDate))
 const zoomLevels = ref<GanttZoomLevel[]>([
-  { id: 'day', label: 'День', tiers: ['month', 'day'], columnWidth: 80 },
+  { id: 'day', label: 'День', tiers: ['month', 'day'], columnWidth: 220 },
   { id: 'week', label: 'Неделя', tiers: ['month', 'day'], columnWidth: 70 },
   { id: 'month', label: 'Месяц', tiers: ['year', 'month'], columnWidth: 80 },
   { id: 'quarter', label: 'Квартал', tiers: ['year', 'month'], columnWidth: 100 },
@@ -99,6 +99,8 @@ const ganttTheme = computed<Record<string, string>>(() => ({
   '--gantt-tooltip-bg': themeVars.value.popoverColor,
   '--gantt-tooltip-color': themeVars.value.textColor1,
   '--gantt-tooltip-shadow': themeVars.value.boxShadow2,
+  '--gantt-bar-height': '70%',
+  '--gantt-bar-font-size': '12px',
 }))
 
 async function setZoom(level: string) {
@@ -180,11 +182,8 @@ function localDateOnly(value: unknown) {
   return parsed
 }
 
-function formatDateTime(value: Date) {
-  return new Intl.DateTimeFormat('ru-RU', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(value)
+function formatPeriodDate(value: Date) {
+  return format(value, 'dd. MMM', { locale: ru })
 }
 
 function resolveProjectRange(item: ProjectDateFields): ResolvedProjectRange | null {
@@ -194,8 +193,8 @@ function resolveProjectRange(item: ProjectDateFields): ResolvedProjectRange | nu
     return {
       start: timedStart,
       end: timedEnd,
-      displayStart: formatDateTime(timedStart),
-      displayEnd: formatDateTime(timedEnd),
+      displayStart: formatPeriodDate(timedStart),
+      displayEnd: formatPeriodDate(timedEnd),
       allDay: false,
     }
   }
@@ -209,8 +208,8 @@ function resolveProjectRange(item: ProjectDateFields): ResolvedProjectRange | nu
   return {
     start: allDayStart,
     end: exclusiveEnd,
-    displayStart: String(item.start_date),
-    displayEnd: String(item.end_date),
+    displayStart: formatPeriodDate(allDayStart),
+    displayEnd: formatPeriodDate(inclusiveEnd),
     allDay: true,
   }
 }
@@ -571,8 +570,8 @@ onMounted(() => {
             class="h-full w-full"
             :style="{ minHeight: '0px' }"
             :rows="rows"
-            :sidebar-width="360"
-            :row-height="42"
+            :sidebar-width="200"
+            :row-height="70"
             :header-row-height="34"
             :group-header-height="38"
             timeline-mode="infinite"
@@ -588,6 +587,7 @@ onMounted(() => {
             @range-change="onRangeChange"
             aria-label="Задачи тренеров по времени"
             height="100%"
+            overlap="overlap"
           >
             <template #non-working>
               <GanttNonWorking />
@@ -718,6 +718,20 @@ onMounted(() => {
 :deep(.gantt-root) {
   min-height: 0;
   background: var(--gantt-surface);
+}
+
+/* Левая и правая границы каждой обычной записи */
+:deep(.gantt-bar) {
+  border-left: 4px solid color-mix(in srgb, var(--gantt-bar-color) 50%, transparent);
+  border-right: 4px solid color-mix(in srgb, var(--gantt-bar-color) 50%, transparent);
+}
+
+/* Названия обычных записей: перенос по словам */
+:deep(.gantt-bar__label) {
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 1.2;
+  padding: 3px 8px;
 }
 
 .task-tooltip {

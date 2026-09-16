@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { NButton, NModal, NPopconfirm, NSpin, useMessage } from 'naive-ui'
 import {
   activityFormToPayload,
@@ -26,10 +26,12 @@ const props = withDefaults(defineProps<{
   trainerId?: number | null
   canManageParticipants?: boolean
   initialSchedule?: ActivityScheduleSeed | null
+  allowCopy?: boolean
 }>(), {
   trainerId: null,
   canManageParticipants: true,
   initialSchedule: null,
+  allowCopy: false,
 })
 
 const emit = defineEmits<{
@@ -54,9 +56,19 @@ const currentRecord = ref<ActivityRecord | null>(null)
 const references = ref<ActivityReferences>(emptyReferences())
 const trainers = ref<SelectOption[]>([])
 const form = ref<ActivityFormValues>(createActivityForm())
+const copyMode = ref(false)
+const effectiveRecordId = computed(() => copyMode.value ? null : props.recordId)
+const formReadOnly = computed(() => !copyMode.value && groupReadOnly())
+const modalTitle = computed(() => {
+  if (copyMode.value) return 'Создание копии активности'
+  return props.recordId ? 'Редактирование активности' : 'Новая активность'
+})
 
 async function prepareEditor() {
-  if (!props.show) return
+  if (!props.show) {
+    copyMode.value = false
+    return
+  }
   loading.value = true
   try {
     const [referenceData, trainerOptions] = await Promise.all([
@@ -109,8 +121,12 @@ const groupEventNote = () =>
     && currentRecord.value.trainer_id === props.trainerId,
   )
 
+function handleCopy() {
+  copyMode.value = true
+}
+
 async function handleSave() {
-  if (groupReadOnly()) return
+  if (formReadOnly.value) return
   const validationError = validateActivityForm(form.value)
   if (validationError) {
     message.warning(validationError)
@@ -122,16 +138,21 @@ async function handleSave() {
   saving.value = true
   try {
     await saveActivity({
-      recordId: props.recordId,
+      recordId: effectiveRecordId.value,
       trainerId,
       participantIds: form.value.participant_ids,
       canManageParticipants: props.canManageParticipants,
-      payload: activityFormToPayload(form.value),
+      payload: {
+        ...activityFormToPayload(form.value),
+        is_duplicate: copyMode.value,
+      },
     })
     message.success(
       props.canManageParticipants
         ? (props.recordId ? 'Активность обновлена' : 'Активность добавлена')
-        : (props.recordId ? 'Изменение отправлено на утверждение' : 'Активность отправлена на утверждение'),
+        : (copyMode.value
+          ? 'Копия отправлена на утверждение'
+          : (props.recordId ? 'Изменение отправлено на утверждение' : 'Активность отправлена на утверждение')),
     )
     emit('update:show', false)
     emit('saved')
@@ -171,7 +192,7 @@ async function handleDelete() {
   <NModal
     :show="show"
     preset="card"
-    :title="recordId ? 'Редактирование активности' : 'Новая активность'"
+    :title="modalTitle"
     :style="{ width: compact ? 'calc(100vw - 16px)' : '672px', maxWidth: 'calc(100vw - 24px)' }"
     :content-style="{
       maxHeight: compact ? 'calc(100vh - 100px)' : 'calc(90vh - 76px)',
@@ -191,18 +212,26 @@ async function handleDelete() {
         :trainers="trainers"
         :show-participants="canManageParticipants"
         :compact="compact"
-        :disabled="groupReadOnly()"
-        :group-read-only-note="groupReadOnly()"
+        :disabled="formReadOnly"
+        :group-read-only-note="formReadOnly"
         :group-event-note="groupEventNote()"
       />
       <div class="modal-actions">
-        <NPopconfirm v-if="recordId && !groupReadOnly()" @positive-click="handleDelete">
+        <NPopconfirm v-if="recordId && !copyMode && !formReadOnly" @positive-click="handleDelete">
           <template #trigger><NButton type="error" secondary :loading="saving">Удалить</NButton></template>
           Удалить эту активность?
         </NPopconfirm>
+        <NButton
+          v-if="recordId && !copyMode && allowCopy"
+          secondary
+          :disabled="saving"
+          @click="handleCopy"
+        >
+          Создать копию
+        </NButton>
         <span class="modal-spacer" />
         <NButton @click="emit('update:show', false)">Отмена</NButton>
-        <NButton type="primary" :loading="saving" :disabled="groupReadOnly()" @click="handleSave">
+        <NButton type="primary" :loading="saving" :disabled="formReadOnly" @click="handleSave">
           Сохранить
         </NButton>
       </div>

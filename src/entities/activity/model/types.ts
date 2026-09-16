@@ -14,6 +14,8 @@ export type ActivityRecord = {
   approval_status?: ApprovalStatus
   pending_change_type?: PendingChangeType | null
   pending_request_id?: number | null
+  rejected_change_type?: PendingChangeType | null
+  rejected_request_id?: number | null
   event_group_id: string | null
   project_type_id: number | null
   project_main_id: number | null

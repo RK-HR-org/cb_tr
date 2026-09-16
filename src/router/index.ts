@@ -139,8 +139,8 @@ router.beforeEach(async (to, _from) => {
     && to.meta.role !== authStore.profile.role
   ) {
     return authStore.profile.role === "admin"
-      ? { name: "admin-dashboard" }
-      : { name: "trainer-dashboard" };
+      ? { name: "admin-gantt" }
+      : { name: "calendar" };
   }
 
   if (to.name === "login" && authStore.profile) {
