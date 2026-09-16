@@ -7,7 +7,6 @@ import { useThemeStore } from '../../../stores/theme'
 import { countPendingChangeRequests } from '../../../entities/activity-approval'
 import { 
   LogOutOutline as LogoutIcon, 
-  BarChartOutline as StatsIcon, 
   BookOutline as BookIcon, 
   GridOutline as GridIcon,
   CalendarOutline as CalendarIcon,
