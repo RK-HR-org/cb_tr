@@ -178,8 +178,11 @@ function eventColor(
   return resolveProjectColor(projectMainId, project?.color, projectColorFallback)
 }
 
-function isPendingActivity(record: ActivityListItem): boolean {
+function activityApprovalState(record: ActivityListItem): 'pending' | 'rejected' | null {
+  if (record.approval_status === 'rejected' || record.rejected_change_type) return 'rejected'
   return record.approval_status === 'pending' || Boolean(record.pending_change_type)
+    ? 'pending'
+    : null
 }
 
 const activityEvents = computed<EventInput[]>(() =>
@@ -193,22 +196,30 @@ const activityEvents = computed<EventInput[]>(() =>
         : null
     if (!start || !end) return []
 
-    const pending = isPendingActivity(record)
+    const approvalState = activityApprovalState(record)
+    const pending = approvalState === 'pending'
+    const rejected = approvalState === 'rejected'
     const baseTitle = record.task_desc?.trim()
       || record.project_names?.name
       || (record.source_schedule_key ? `График ${record.source_schedule_key}` : 'Событие')
 
     return [{
       id: 'activity-' + record.id,
-      title: pending ? `${baseTitle} (на утверждении)` : baseTitle,
+      title: rejected
+        ? `${baseTitle} (отклонено)`
+        : pending ? `${baseTitle} (на утверждении)` : baseTitle,
       start,
       end,
       allDay: !timed,
-      backgroundColor: eventColor(record.project_main_id, record.project_names),
-      borderColor: eventColor(record.project_main_id, record.project_names),
-      classNames: pending ? ['event-pending'] : [],
+      backgroundColor: rejected
+        ? themeVars.value.errorColor
+        : eventColor(record.project_main_id, record.project_names),
+      borderColor: rejected
+        ? themeVars.value.errorColor
+        : eventColor(record.project_main_id, record.project_names),
+      classNames: rejected ? ['event-rejected'] : pending ? ['event-pending'] : [],
       editable: isAdmin.value || record.trainer_id === targetTrainerId.value,
-      extendedProps: { record, pendingApproval: pending },
+      extendedProps: { record, pendingApproval: pending, rejectedApproval: rejected },
     }]
   }),
 )
@@ -530,6 +541,7 @@ onBeforeUnmount(() => mediaQuery.removeEventListener('change', handleMedia))
       :trainer-id="targetTrainerId"
       :can-manage-participants="isAdmin"
       :initial-schedule="activityEditorSchedule"
+      :allow-copy="!isAdmin"
       @saved="loadEvents"
     />
     <AdminCalendarEventEditorModal
@@ -600,6 +612,10 @@ onBeforeUnmount(() => mediaQuery.removeEventListener('change', handleMedia))
 :deep(.fc-event.event-pending) {
   opacity: 0.72;
   border-style: dashed !important;
+  border-width: 2px !important;
+}
+:deep(.fc-event.event-rejected) {
+  border-style: solid !important;
   border-width: 2px !important;
 }
 @media (max-width:700px) {

@@ -10,9 +10,9 @@ onMounted(async () => {
   await authStore.initializeAuth()
   if (authStore.profile) {
     if (authStore.profile.role === 'admin') {
-      router.push('/admin/dashboard')
+      router.push('/admin/gantt')
     } else {
-      router.push('/trainer/dashboard')
+      router.push('/calendar')
     }
   } else {
     router.push('/login')

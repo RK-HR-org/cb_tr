@@ -136,7 +136,7 @@ function applyPendingOverlays<T extends ActivityListItem>(
 ): T[] {
   const byProjectId = new Map<number, ActivityChangeRequest>()
   for (const request of requests) {
-    if (request.trainer_project_id != null) {
+    if (request.trainer_project_id != null && !byProjectId.has(request.trainer_project_id)) {
       byProjectId.set(request.trainer_project_id, request)
     }
   }
@@ -147,6 +147,14 @@ function applyPendingOverlays<T extends ActivityListItem>(
       return {
         ...item,
         approval_status: item.approval_status ?? 'approved',
+      }
+    }
+
+    if (request.status === 'rejected') {
+      return {
+        ...item,
+        rejected_change_type: request.change_type,
+        rejected_request_id: request.id,
       }
     }
 

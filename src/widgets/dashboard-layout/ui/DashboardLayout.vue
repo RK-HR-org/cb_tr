@@ -7,7 +7,6 @@ import { useThemeStore } from '../../../stores/theme'
 import { countPendingChangeRequests } from '../../../entities/activity-approval'
 import { 
   LogOutOutline as LogoutIcon, 
-  BarChartOutline as StatsIcon, 
   BookOutline as BookIcon, 
   GridOutline as GridIcon,
   CalendarOutline as CalendarIcon,
@@ -139,13 +138,13 @@ async function handleLogout() {
           //   icon: () => h(NIcon, null, { default: () => h(CalculatorIcon) }),
           //   onClick: () => router.push('/admin/work-norms')
           // },
-          {
-            label: 'Мои задачи',
-            key: 'trainer-dashboard',
-            show: !isAdmin,
-            icon: () => h(NIcon, null, { default: () => h(StatsIcon) }),
-            onClick: () => router.push('/trainer/dashboard')
-          },
+          // {
+          //   label: 'Мои задачи',
+          //   key: 'trainer-dashboard',
+          //   show: !isAdmin,
+          //   icon: () => h(NIcon, null, { default: () => h(StatsIcon) }),
+          //   onClick: () => router.push('/trainer/dashboard')
+          // },
           {
             label: 'Проекты',
             key: 'projects',

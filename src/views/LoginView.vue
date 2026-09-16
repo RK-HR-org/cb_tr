@@ -30,9 +30,9 @@ async function handleLogin() {
   message.success('Успешный вход')
 
   if (authStore.profile?.role === 'admin') {
-    router.push('/admin/dashboard')
+    router.push('/admin/gantt')
   } else {
-    router.push('/trainer/dashboard')
+    router.push('/calendar')
   }
 }
 </script>

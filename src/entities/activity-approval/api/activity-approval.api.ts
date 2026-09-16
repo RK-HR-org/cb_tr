@@ -60,7 +60,7 @@ export async function listTrainerPendingRequests(
     .from('activity_change_requests')
     .select(REQUEST_FIELDS)
     .eq('trainer_id', trainerId)
-    .eq('status', 'pending')
+    .in('status', ['pending', 'rejected'])
     .order('submitted_at', { ascending: false })
   if (error) throw error
   return (data || []) as unknown as ActivityChangeRequest[]
