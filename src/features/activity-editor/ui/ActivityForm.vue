@@ -87,7 +87,7 @@ const model = defineModel<ActivityFormValues>({ required: true })
         </NFormItem>
       </NGridItem>
       <NGridItem>
-        <NFormItem label="Формат выполнения">
+        <NFormItem label="Формат выполнения задачи">
           <NSelect v-model:value="model.delivery_format_id" :options="references.deliveryFormats"
             placeholder="Как выполнялась задача?" clearable />
         </NFormItem>
