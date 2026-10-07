@@ -28,6 +28,7 @@ import { useAuthStore } from '../stores/auth'
 import {
   getActivityReferences,
   listCalendarActivities,
+  listGanttActivities,
   updateActivitySchedule,
   type ActivityListItem,
   type ActivityScheduleSeed,
@@ -75,6 +76,7 @@ const adminEvents = ref<AdminCalendarEventListItem[]>([])
 const trainers = ref<SelectOption[]>([])
 const productionCalendarDays = ref<ProductionCalendarDay[]>([])
 const selectedTrainerId = ref<number | null>(null)
+const showAllTrainerActivities = ref(false)
 const mediaQuery = window.matchMedia('(max-width: 700px)')
 const compact = ref(mediaQuery.matches)
 const palette = ['#2563eb', '#16a34a', '#9333ea', '#ea580c', '#0891b2', '#db2777', '#4f46e5', '#65a30d']
@@ -185,8 +187,16 @@ function activityApprovalState(record: ActivityListItem): 'pending' | 'rejected'
     : null
 }
 
+const calendarActivityRecords = computed(() => {
+  if (!isAdmin.value || !showAllTrainerActivities.value || selectedTrainerId.value) {
+    return records.value
+  }
+
+  return records.value.filter(record => record.source_type !== 'admin_calendar_event')
+})
+
 const activityEvents = computed<EventInput[]>(() =>
-  records.value.flatMap(record => {
+  calendarActivityRecords.value.flatMap(record => {
     const timed = Boolean(record.start_datetime && record.end_datetime)
     const start = timed ? record.start_datetime : record.start_date
     const end = timed
@@ -218,7 +228,8 @@ const activityEvents = computed<EventInput[]>(() =>
         ? themeVars.value.errorColor
         : eventColor(record.project_main_id, record.project_names),
       classNames: rejected ? ['event-rejected'] : pending ? ['event-pending'] : [],
-      editable: isAdmin.value || record.trainer_id === targetTrainerId.value,
+      editable: (isAdmin.value && !showAllTrainerActivities.value)
+        || record.trainer_id === targetTrainerId.value,
       extendedProps: { record, pendingApproval: pending, rejectedApproval: rejected },
     }]
   }),
@@ -444,7 +455,11 @@ async function loadEvents() {
   try {
     const [loadedAdminEvents, loadedActivities] = await Promise.all([
       isAdmin.value ? listAdminCalendarEvents() : Promise.resolve([]),
-      targetTrainerId.value ? listCalendarActivities(targetTrainerId.value) : Promise.resolve([]),
+      targetTrainerId.value
+        ? listCalendarActivities(targetTrainerId.value)
+        : isAdmin.value && showAllTrainerActivities.value
+          ? listGanttActivities(currentCalendarDateRange())
+          : Promise.resolve([]),
     ])
     adminEvents.value = loadedAdminEvents
     records.value = loadedActivities
@@ -464,6 +479,25 @@ async function loadEvents() {
 
 async function changeTrainer(value: number | null) {
   selectedTrainerId.value = value
+  showAllTrainerActivities.value = false
+  await loadEvents()
+}
+
+function currentCalendarDateRange(): { from: string; to: string } {
+  const calendarApi = calendarRef.value?.getApi()
+  const currentDate = calendarApi?.getDate() ?? new Date()
+  const from = calendarApi?.view.activeStart
+    ?? new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+  const activeEnd = calendarApi?.view.activeEnd
+  const to = activeEnd
+    ? new Date(activeEnd)
+    : new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+  if (activeEnd) to.setDate(to.getDate() - 1)
+  return { from: toLocalDateString(from), to: toLocalDateString(to) }
+}
+
+async function toggleAllTrainerActivities() {
+  showAllTrainerActivities.value = !showAllTrainerActivities.value
   await loadEvents()
 }
 
@@ -511,6 +545,13 @@ onBeforeUnmount(() => mediaQuery.removeEventListener('change', handleMedia))
           <NSelect v-if="isAdmin" :value="selectedTrainerId" :options="trainers" filterable
             clearable placeholder="Дополнительно показать тренера" class="trainer-select"
             @update:value="changeTrainer" />
+          <NButton
+            v-if="isAdmin && !selectedTrainerId"
+            :loading="loading"
+            @click="toggleAllTrainerActivities"
+          >
+            {{ showAllTrainerActivities ? 'Скрыть активности всех тренеров' : 'Показать активности всех тренеров' }}
+          </NButton>
           <NButton
             v-if="isAdmin"
             :loading="exportingEvents"
