@@ -269,7 +269,7 @@ const productionCalendarEvents = computed<EventInput[]>(() =>
 
 const events = computed<EventInput[]>(() => [
   ...productionCalendarEvents.value,
-  ...(isAdmin.value ? administratorEvents.value : []),
+  ...(isAdmin.value && !selectedTrainerId.value ? administratorEvents.value : []),
   ...activityEvents.value,
 ])
 
