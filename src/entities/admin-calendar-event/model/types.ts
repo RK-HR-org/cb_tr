@@ -26,7 +26,7 @@ export type AdminCalendarEventRecord = {
 }
 
 export type AdminCalendarEventListItem = AdminCalendarEventRecord & {
-  project_names?: { name?: string; color?: string | null } | null
+  project_names?: { name?: string; audit_index?: string | null; color?: string | null } | null
   activity_types?: { name?: string } | null
   delivery_formats?: { name?: string } | null
   recurrence_types?: { name?: string } | null

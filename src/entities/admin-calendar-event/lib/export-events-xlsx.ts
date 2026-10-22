@@ -10,6 +10,7 @@ import type { AdminCalendarEventListItem } from '../model/types'
 export const DEFAULT_ADMIN_EVENTS_EXPORT_YEAR = 2027
 
 const EXPORT_COLUMNS = [
+  'Индекс',
   'Событие',
   'Дата начала',
   'Дата окончания',
@@ -93,6 +94,7 @@ export function downloadAdminEventsXlsx(
   const rows = filterAdminEventsForYear(events, year).map(event => {
     const schedule = eventExportSchedule(event)
     return {
+      'Индекс': event.project_names?.audit_index?.trim() || '-',
       'Событие': event.title,
       'Дата начала': schedule.start,
       'Дата окончания': schedule.end,
@@ -104,6 +106,7 @@ export function downloadAdminEventsXlsx(
 
   const worksheet = XLSX.utils.json_to_sheet(rows, { header: [...EXPORT_COLUMNS] })
   worksheet['!cols'] = [
+    { wch: 10 },
     { wch: 40 },
     { wch: 18 },
     { wch: 18 },
