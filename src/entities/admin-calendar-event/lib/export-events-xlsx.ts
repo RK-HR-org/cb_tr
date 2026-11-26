@@ -19,6 +19,8 @@ const EXPORT_COLUMNS = [
   'Формат',
 ] as const
 
+const ORG_EXPORT_COLUMNS = [...EXPORT_COLUMNS, 'Тренеры'] as const
+
 const MS_PER_DAY = 86400000
 
 function getEventStartYear(event: AdminCalendarEventListItem): number | null {
@@ -118,6 +120,44 @@ export function downloadAdminEventsXlsx(
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Мероприятия')
   XLSX.writeFile(workbook, `meropriyatiya-${year}.xlsx`)
+
+  return rows.length
+}
+
+export function downloadAdminEventsOrgXlsx(
+  events: AdminCalendarEventListItem[],
+  trainerNamesByEventId: ReadonlyMap<number, string[]>,
+  year = DEFAULT_ADMIN_EVENTS_EXPORT_YEAR,
+): number {
+  const rows = filterAdminEventsForYear(events, year).map(event => {
+    const schedule = eventExportSchedule(event)
+    return {
+      'Индекс': event.project_names?.audit_index?.trim() || '-',
+      'Событие': event.title,
+      'Дата начала': schedule.start,
+      'Дата окончания': schedule.end,
+      'Количество дней': schedule.days,
+      'Количество тренеров': event.required_trainer_count,
+      'Формат': event.delivery_formats?.name?.trim() || '-',
+      'Тренеры': trainerNamesByEventId.get(event.id)?.join(', ') || '-',
+    }
+  })
+
+  const worksheet = XLSX.utils.json_to_sheet(rows, { header: [...ORG_EXPORT_COLUMNS] })
+  worksheet['!cols'] = [
+    { wch: 10 },
+    { wch: 40 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 16 },
+    { wch: 22 },
+    { wch: 24 },
+    { wch: 40 },
+  ]
+
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Мероприятия')
+  XLSX.writeFile(workbook, `meropriyatiya-org-${year}.xlsx`)
 
   return rows.length
 }

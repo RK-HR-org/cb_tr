@@ -52,6 +52,29 @@ export async function getAdminCalendarEventTrainerIds(id: number): Promise<numbe
   return (data || []).map(row => row.trainer_id)
 }
 
+export async function listAdminCalendarEventTrainerNames(): Promise<Map<number, string[]>> {
+  const [{ data: assignments, error: assignmentsError }, { data: trainerRows, error: trainersError }] =
+    await Promise.all([
+      supabase.from('admin_calendar_event_trainers').select('event_id, trainer_id'),
+      supabase.from('trainers').select('id, full_name'),
+    ])
+  if (assignmentsError) throw assignmentsError
+  if (trainersError) throw trainersError
+
+  const namesByTrainerId = new Map(
+    (trainerRows || []).map(row => [row.id, row.full_name]),
+  )
+  const namesByEventId = new Map<number, string[]>()
+  for (const assignment of assignments || []) {
+    const name = namesByTrainerId.get(assignment.trainer_id)?.trim()
+    if (!name) continue
+    const names = namesByEventId.get(assignment.event_id) || []
+    names.push(name)
+    namesByEventId.set(assignment.event_id, names)
+  }
+  return namesByEventId
+}
+
 export async function listFutureAdminCalendarEventIds(id: number): Promise<number[]> {
   const event = await getAdminCalendarEvent(id)
   if (!event.recurrence_until) return [id]

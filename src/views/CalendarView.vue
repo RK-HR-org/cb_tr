@@ -42,9 +42,11 @@ import {
 import { ActivityEditorModal } from '../features/activity-editor'
 import {
   DEFAULT_ADMIN_EVENTS_EXPORT_YEAR,
+  downloadAdminEventsOrgXlsx,
   downloadAdminEventsXlsx,
   isOnlineDeliveryFormatName,
   listAdminCalendarEvents,
+  listAdminCalendarEventTrainerNames,
   ONLINE_EVENT_ICON_URL,
   updateAdminCalendarEventSchedule,
   type AdminCalendarEventListItem,
@@ -65,6 +67,7 @@ const themeVars = useThemeVars()
 const calendarRef = ref<InstanceType<typeof FullCalendar> | null>(null)
 const loading = ref(false)
 const exportingEvents = ref(false)
+const exportingOrgEvents = ref(false)
 const showActivityEditor = ref(false)
 const editingActivityId = ref<number | null>(null)
 const activityEditorSchedule = ref<ActivityScheduleSeed | null>(null)
@@ -449,6 +452,30 @@ async function exportAdminEvents() {
   }
 }
 
+async function exportOrgEvents() {
+  exportingOrgEvents.value = true
+  try {
+    const [events, trainerNamesByEventId] = await Promise.all([
+      listAdminCalendarEvents(),
+      listAdminCalendarEventTrainerNames(),
+    ])
+    const count = downloadAdminEventsOrgXlsx(
+      events,
+      trainerNamesByEventId,
+      DEFAULT_ADMIN_EVENTS_EXPORT_YEAR,
+    )
+    if (!count) {
+      message.warning(`Нет мероприятий на ${DEFAULT_ADMIN_EVENTS_EXPORT_YEAR} год`)
+      return
+    }
+    message.success(`Выгружено мероприятий: ${count}`)
+  } catch (error: unknown) {
+    message.error(error instanceof Error ? error.message : 'Не удалось выгрузить мероприятия')
+  } finally {
+    exportingOrgEvents.value = false
+  }
+}
+
 async function loadEvents() {
   const currentCalendarDate = calendarRef.value?.getApi().getDate()
   loading.value = true
@@ -558,6 +585,13 @@ onBeforeUnmount(() => mediaQuery.removeEventListener('change', handleMedia))
             @click="exportAdminEvents"
           >
             Выгрузить мероприятия
+          </NButton>
+          <NButton
+            v-if="isAdmin"
+            :loading="exportingOrgEvents"
+            @click="exportOrgEvents"
+          >
+            Орг
           </NButton>
           <NButton type="primary" :disabled="!isAdmin && !targetTrainerId" @click="openCreate()">
             {{ isAdmin ? 'Добавить мероприятие' : 'Добавить активность' }}
